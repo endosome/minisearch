@@ -42,6 +42,9 @@ const WORKLOADS = {
   'dirty search (first pass)': { setup: 'dirty', fresh: true, repeat: 1, run: (ix, qs) => sumRows(qs.map(q => ix.search(q))) },
   'termCount': { run: ix => { let s = 0; for (let i = 0; i < 200; i++) s += ix.termCount; return s; } },
   'addAll': { setup: 'empty', fresh: true, repeat: 1, run: (ix, qs, docs) => { ix.addAll(docs); return ix.documentCount + ix.termCount; } },
+  // Long articles (WP-09): ~800 words per document from a Zipf-like vocabulary.
+  'addAll long text': { setup: 'empty', corpus: 'long', fresh: true, repeat: 1, run: (ix, qs, docs) => { ix.addAll(docs); return ix.documentCount + ix.termCount; } },
+  'search long text': { corpus: 'long', run: (ix, qs) => sumRows(qs.map(q => ix.search(q, { prefix: true }))) },
   'discard 25% + vacuum': { fresh: true, repeat: 1, run: async (ix, qs, docs) => { for (const d of docs) if (d.id % 4 === 0) ix.discard(d.id); await ix.vacuum(); return ix.documentCount + ix.termCount; } },
 };
 function sumRows(batches) {
@@ -58,27 +61,41 @@ if (process.argv.includes('--child')) {
   const MiniSearch = facade.default;
   const { docs, queries } = JSON.parse(readFileSync(resolve(root, 'differential/bench_corpus.json'), 'utf8'));
   const options = { fields: ['title', 'text'], autoVacuum: false, searchOptions: { prefix: true, fuzzy: 0.2, combineWith: 'AND' } };
-  const make = kind => {
+  const make = (kind, docs) => {
     const ix = new MiniSearch(kind === 'storedScore' ? { ...options, storeFields: ['score'] } : kind === 'storedTitle' ? { ...options, storeFields: ['title'] } : options);
     if (kind === 'empty') return ix;
     ix.addAll(kind === 'storedScore' ? docs.map(d => ({ ...d, score: d.id % 7 })) : docs);
     if (kind === 'dirty') for (const d of docs) if (d.id % 4 === 0) ix.discard(d.id);
     return ix;
   };
+  // A deterministic long-text corpus, and queries drawn from its vocabulary.
+  let longCorpus;
+  const long = () => longCorpus ??= (() => {
+    let seed = 0x5eed1;
+    const rand = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >> 17; seed ^= seed << 5; seed >>>= 0; return seed / 0x100000000; };
+    const syllables = ['ka', 'lo', 'mi', 'ne', 'ru', 'sa', 'to', 'vi', 'den', 'mar', 'qu', 'zel', 'or', 'ti', 'ber'];
+    const vocab = Array.from({ length: 5000 }, (_, i) => { let w = '', n = i + 7; do { w += syllables[n % syllables.length]; n = Math.floor(n / syllables.length); } while (n > 0); return i % 9 ? w : w[0].toUpperCase() + w.slice(1); });
+    const word = () => vocab[Math.floor(vocab.length * rand() ** 3)];
+    const words = n => Array.from({ length: n }, word).join(' ');
+    const docs = Array.from({ length: 2000 }, (_, id) => ({ id, title: words(6), text: words(600 + Math.floor(rand() * 400)) }));
+    const queries = Array.from({ length: 39 }, () => `${word()} ${word().slice(0, 3)}`);
+    return { docs, queries };
+  })();
   const shared = {};
   const out = {};
   for (const name of names) {
     const w = WORKLOADS[name];
     const repeat = w.repeat ?? 3;
-    let ix = w.fresh ? null : (shared[w.setup ?? 'plain'] ??= make(w.setup));
-    if (!w.fresh) await w.run(ix, queries, docs); // warm-up
+    const [corpusDocs, corpusQueries] = w.corpus === 'long' ? [long().docs, long().queries] : [docs, queries];
+    let ix = w.fresh ? null : (shared[`${w.setup ?? 'plain'} ${w.corpus ?? ''}`] ??= make(w.setup, corpusDocs));
+    if (!w.fresh) await w.run(ix, corpusQueries, corpusDocs); // warm-up
     const times = [];
     let checksum;
     for (let i = 0; i < repeat; i++) {
-      if (w.fresh) ix = make(w.setup);
+      if (w.fresh) ix = make(w.setup, corpusDocs);
       global.gc?.();
       const t = performance.now();
-      checksum = await w.run(ix, queries, docs);
+      checksum = await w.run(ix, corpusQueries, corpusDocs);
       times.push(performance.now() - t);
       if (w.fresh) ix.free();
     }

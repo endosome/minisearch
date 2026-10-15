@@ -177,3 +177,38 @@ await test('more than 64 fields: the fused path, with and without match, rows un
   }
   }
 });
+
+await test('long repetitive fields index as MiniSearch does', () => {
+  // Fields longer than the bench corpus's, with repeated terms: the index,
+  // its snapshot, scores and removal must not differ.
+  const words = ['Apple', 'apple', 'pear', 'PEAR', 'plum', 'zürich', 'Zürich', 'kiwi', 'fig', 'date', 'lime'];
+  const text = (n, seed) => Array.from({ length: n }, (_, i) => (i % 5 ? ' ' : ', ') + words[(i * i + seed * 7 + (i % 3)) % words.length]).join('');
+  const docs = Array.from({ length: 30 }, (_, id) => ({ id, title: text(3 + (id % 4), id), text: text(id % 2 ? 31 + id * 3 : 32 + id, id + 1) }));
+  const variants = [
+    {},
+    // Callbacks move tokenizing to JavaScript: the term-batch path, with empty
+    // and multiple terms per token.
+    { processTerm: (term, field) => term.length === 3 ? '' : term.startsWith('p') ? [term.toLowerCase(), 'p'] : term.toLowerCase() },
+    { tokenize: text => text.split(' ') },
+  ];
+  for (const extra of variants) {
+    const run = C => {
+      const index = new C({ fields: ['title', 'text'], autoVacuum: false, ...extra });
+      index.addAll(docs);
+      const snapshot = JSON.parse(JSON.stringify(index));
+      const found = ['apple', 'pear zür', 'p'].map(q => index.search(q, { prefix: true, fuzzy: 0.2 }));
+      for (const doc of docs.slice(0, 10)) index.remove(doc);
+      const after = [JSON.parse(JSON.stringify(index)), index.search('apple pear', { combineWith: 'OR' })];
+      if (C === MiniSearch) { assert.equal(index.executionMode, 'wasm'); index.free(); }
+      return { snapshot, found, after };
+    };
+    assert.deepEqual(run(MiniSearch), run(Original), JSON.stringify(Object.keys(extra)));
+  }
+  // The engine's own add (documents with their ids, native tokenizer).
+  const core = new Core({ fields: ['title', 'text'], autoVacuum: false }), upstream = new Original({ fields: ['title', 'text'], autoVacuum: false });
+  core.addAll(docs); upstream.addAll(docs);
+  assert.deepEqual(core.toJSON(), JSON.parse(JSON.stringify(upstream)));
+  for (const doc of docs.slice(0, 10)) { core.remove(doc); upstream.remove(doc); }
+  assert.deepEqual(core.toJSON(), JSON.parse(JSON.stringify(upstream)));
+  core.free();
+});
