@@ -1,0 +1,3637 @@
+{
+ "stored score, static": {
+  "log": [
+   [
+    "call",
+    "search \"apple\""
+   ],
+   [
+    "call",
+    "search \"ap\""
+   ],
+   [
+    "call",
+    "search \"apple pear\""
+   ],
+   [
+    "call",
+    "search \"aple\""
+   ],
+   [
+    "call",
+    "searchJoined apple"
+   ],
+   [
+    "call",
+    "searchJoined OR apple"
+   ],
+   [
+    "call",
+    "searchJoinedOpts apple"
+   ],
+   [
+    "call",
+    "searchRaw apple"
+   ],
+   [
+    "call",
+    "autoSuggestJoined apple"
+   ]
+  ],
+  "outputs": [
+   [
+    "search \"apple\"",
+    [
+     {
+      "id": 1,
+      "score": 5,
+      "terms": [
+       "apple",
+       "apples"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ],
+       "apples": [
+        "text"
+       ]
+      },
+      "title": "apple pie"
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      },
+      "title": "apple apple"
+     },
+     {
+      "id": 3,
+      "score": 3,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      },
+      "title": "banana bread"
+     },
+     {
+      "id": 4,
+      "score": 3,
+      "terms": [
+       "apples"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apples": [
+        "text"
+       ]
+      },
+      "title": "pear tart"
+     }
+    ]
+   ],
+   [
+    "search \"ap\"",
+    [
+     {
+      "id": 1,
+      "score": 5,
+      "terms": [
+       "apples",
+       "apple"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apples": [
+        "text"
+       ],
+       "apple": [
+        "title"
+       ]
+      },
+      "title": "apple pie"
+     },
+     {
+      "id": 4,
+      "score": 3,
+      "terms": [
+       "apricots",
+       "apples"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apricots": [
+        "text"
+       ],
+       "apples": [
+        "text"
+       ]
+      },
+      "title": "pear tart"
+     },
+     {
+      "id": 3,
+      "score": 3,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      },
+      "title": "banana bread"
+     },
+     {
+      "id": 2,
+      "score": 1,
+      "terms": [
+       "apricot"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apricot": [
+        "title",
+        "text"
+       ]
+      },
+      "title": "apricot jam"
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      },
+      "title": "apple apple"
+     }
+    ]
+   ],
+   [
+    "search \"apple pear\"",
+    [
+     {
+      "id": 1,
+      "score": 5,
+      "terms": [
+       "apple",
+       "apples",
+       "pears"
+      ],
+      "queryTerms": [
+       "apple",
+       "pear"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ],
+       "apples": [
+        "text"
+       ],
+       "pears": [
+        "text"
+       ]
+      },
+      "title": "apple pie"
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      },
+      "title": "apple apple"
+     },
+     {
+      "id": 3,
+      "score": 3,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      },
+      "title": "banana bread"
+     },
+     {
+      "id": 4,
+      "score": 3,
+      "terms": [
+       "apples",
+       "pear",
+       "pears"
+      ],
+      "queryTerms": [
+       "apple",
+       "pear"
+      ],
+      "match": {
+       "apples": [
+        "text"
+       ],
+       "pear": [
+        "title"
+       ],
+       "pears": [
+        "text"
+       ]
+      },
+      "title": "pear tart"
+     }
+    ]
+   ],
+   [
+    "search \"aple\"",
+    [
+     {
+      "id": 1,
+      "score": 5,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "aple"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ]
+      },
+      "title": "apple pie"
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "aple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      },
+      "title": "apple apple"
+     },
+     {
+      "id": 3,
+      "score": 3,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "aple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      },
+      "title": "banana bread"
+     }
+    ]
+   ],
+   [
+    "searchJoined apple",
+    {
+     "count": 3,
+     "ids": "[1,6,3]",
+     "scores": [
+      1.4713818022555065,
+      3.978900245986998,
+      1.5218119628420257
+     ],
+     "terms": "apple\napple\napple"
+    }
+   ],
+   [
+    "searchJoined OR apple",
+    {
+     "count": 3,
+     "ids": "[1,6,3]",
+     "scores": [
+      1.4713818022555065,
+      3.978900245986998,
+      1.5218119628420257
+     ],
+     "terms": "apple\napple\napple"
+    }
+   ],
+   [
+    "searchJoinedOpts apple",
+    {
+     "count": 4,
+     "ids": "[1,6,3,4]",
+     "scores": [
+      1.9730052046054503,
+      3.978900245986998,
+      1.5218119628420257,
+      0.5435042724435806
+     ],
+     "terms": "apple apples\napple\napple\napples"
+    }
+   ],
+   [
+    "searchRaw apple",
+    {
+     "count": 3,
+     "docIds": [
+      0,
+      5,
+      2
+     ],
+     "scores": [
+      1.4713818022555065,
+      3.978900245986998,
+      1.5218119628420257
+     ],
+     "termTable": "apple",
+     "termOffsets": [
+      0,
+      1,
+      2,
+      3
+     ],
+     "termIds": [
+      0,
+      0,
+      0
+     ]
+    }
+   ],
+   [
+    "autoSuggestJoined apple",
+    {
+     "count": 3,
+     "suggestions": "apple\napple apples\napples",
+     "scores": [
+      2.7503561044145117,
+      1.9730052046054503,
+      0.5435042724435806
+     ]
+    }
+   ]
+  ],
+  "mode": "wasm"
+ },
+ "stored score, live getter": {
+  "log": [
+   [
+    "call",
+    "search \"apple\""
+   ],
+   [
+    "get score",
+    "5",
+    1
+   ],
+   [
+    "get score",
+    "0",
+    1
+   ],
+   [
+    "get score",
+    "2",
+    1
+   ],
+   [
+    "get score",
+    "3",
+    1
+   ],
+   [
+    "get score",
+    "0",
+    2
+   ],
+   [
+    "get score",
+    "5",
+    2
+   ],
+   [
+    "get score",
+    "2",
+    2
+   ],
+   [
+    "get score",
+    "3",
+    2
+   ],
+   [
+    "call",
+    "search \"apple\""
+   ],
+   [
+    "get score",
+    "5",
+    3
+   ],
+   [
+    "get score",
+    "0",
+    3
+   ],
+   [
+    "get score",
+    "2",
+    3
+   ],
+   [
+    "get score",
+    "3",
+    3
+   ],
+   [
+    "get score",
+    "0",
+    4
+   ],
+   [
+    "get score",
+    "5",
+    4
+   ],
+   [
+    "get score",
+    "2",
+    4
+   ],
+   [
+    "get score",
+    "3",
+    4
+   ],
+   [
+    "call",
+    "searchJoined ap"
+   ],
+   [
+    "call",
+    "searchJoined OR ap"
+   ],
+   [
+    "call",
+    "searchJoinedOpts ap"
+   ],
+   [
+    "get score",
+    "3",
+    5
+   ],
+   [
+    "get score",
+    "1",
+    1
+   ],
+   [
+    "get score",
+    "0",
+    5
+   ],
+   [
+    "get score",
+    "5",
+    5
+   ],
+   [
+    "get score",
+    "2",
+    5
+   ],
+   [
+    "call",
+    "searchRaw ap"
+   ],
+   [
+    "call",
+    "autoSuggestJoined ap"
+   ],
+   [
+    "call",
+    "search \"apple\""
+   ],
+   [
+    "get score",
+    "5",
+    6
+   ],
+   [
+    "get score",
+    "2",
+    6
+   ],
+   [
+    "get score",
+    "0",
+    6
+   ],
+   [
+    "get score",
+    "0",
+    7
+   ],
+   [
+    "get score",
+    "5",
+    7
+   ],
+   [
+    "get score",
+    "2",
+    7
+   ]
+  ],
+  "outputs": [
+   [
+    "search \"apple\"",
+    [
+     {
+      "id": 1,
+      "score": 5.25,
+      "terms": [
+       "apple",
+       "apples"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ],
+       "apples": [
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "score": 3.25,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 4,
+      "score": 3.25,
+      "terms": [
+       "apples"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apples": [
+        "text"
+       ]
+      }
+     }
+    ]
+   ],
+   [
+    "search \"apple\"",
+    [
+     {
+      "id": 1,
+      "score": 5.5,
+      "terms": [
+       "apple",
+       "apples"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ],
+       "apples": [
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "score": 3.5,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 4,
+      "score": 3.5,
+      "terms": [
+       "apples"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apples": [
+        "text"
+       ]
+      }
+     }
+    ]
+   ],
+   [
+    "searchJoined ap",
+    {
+     "count": 0,
+     "ids": "[]",
+     "scores": [],
+     "terms": ""
+    }
+   ],
+   [
+    "searchJoined OR ap",
+    {
+     "count": 0,
+     "ids": "[]",
+     "scores": [],
+     "terms": ""
+    }
+   ],
+   [
+    "searchJoinedOpts ap",
+    {
+     "count": 5,
+     "ids": "[1,4,3,2,6]",
+     "scores": [
+      0.9065206260780778,
+      1.1725548098780747,
+      0.4836266831065759,
+      1.4536083788788452,
+      1.264481010377224
+     ],
+     "terms": "apples apple\napricots apples\napple\napricot\napple"
+    }
+   ],
+   [
+    "searchRaw ap",
+    {
+     "count": 0,
+     "docIds": [],
+     "scores": [],
+     "termTable": "",
+     "termOffsets": [
+      0
+     ],
+     "termIds": []
+    }
+   ],
+   [
+    "autoSuggestJoined ap",
+    {
+     "count": 4,
+     "suggestions": "apricot\napricots apples\napples apple\napple",
+     "scores": [
+      1.4536083788788452,
+      1.1725548098780747,
+      0.9065206260780778,
+      0.8740538467418999
+     ]
+    }
+   ],
+   [
+    "search \"apple\"",
+    [
+     {
+      "id": 1,
+      "score": 5.875,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ]
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ]
+     },
+     {
+      "id": 3,
+      "score": 3.875,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ]
+     }
+    ]
+   ]
+  ],
+  "mode": "wasm"
+ },
+ "stored score, mutated between calls": {
+  "log": [
+   [
+    "call",
+    "search \"apple\""
+   ],
+   [
+    "call",
+    "mutate"
+   ],
+   [
+    "call",
+    "search \"apple\""
+   ],
+   [
+    "call",
+    "searchJoined apple"
+   ],
+   [
+    "call",
+    "searchJoined OR apple"
+   ],
+   [
+    "call",
+    "searchJoinedOpts apple"
+   ],
+   [
+    "call",
+    "searchRaw apple"
+   ],
+   [
+    "call",
+    "autoSuggestJoined apple"
+   ]
+  ],
+  "outputs": [
+   [
+    "search \"apple\"",
+    [
+     {
+      "id": 1,
+      "score": 5,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ]
+      }
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "score": 3,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      }
+     }
+    ]
+   ],
+   [
+    "mutate",
+    null
+   ],
+   [
+    "search \"apple\"",
+    [
+     {
+      "id": 1,
+      "score": -1,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ]
+      }
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "score": 3,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      }
+     }
+    ]
+   ],
+   [
+    "searchJoined apple",
+    {
+     "count": 3,
+     "ids": "[1,6,3]",
+     "scores": [
+      1.4713818022555065,
+      3.978900245986998,
+      1.5218119628420257
+     ],
+     "terms": "apple\napple\napple"
+    }
+   ],
+   [
+    "searchJoined OR apple",
+    {
+     "count": 3,
+     "ids": "[1,6,3]",
+     "scores": [
+      1.4713818022555065,
+      3.978900245986998,
+      1.5218119628420257
+     ],
+     "terms": "apple\napple\napple"
+    }
+   ],
+   [
+    "searchJoinedOpts apple",
+    {
+     "count": 4,
+     "ids": "[1,6,3,4]",
+     "scores": [
+      1.9730052046054503,
+      3.978900245986998,
+      1.5218119628420257,
+      0.5435042724435806
+     ],
+     "terms": "apple apples\napple\napple\napples"
+    }
+   ],
+   [
+    "searchRaw apple",
+    {
+     "count": 3,
+     "docIds": [
+      0,
+      5,
+      2
+     ],
+     "scores": [
+      1.4713818022555065,
+      3.978900245986998,
+      1.5218119628420257
+     ],
+     "termTable": "apple",
+     "termOffsets": [
+      0,
+      1,
+      2,
+      3
+     ],
+     "termIds": [
+      0,
+      0,
+      0
+     ]
+    }
+   ],
+   [
+    "autoSuggestJoined apple",
+    {
+     "count": 3,
+     "suggestions": "apple\napple apples\napples",
+     "scores": [
+      2.7503561044145117,
+      1.9730052046054503,
+      0.5435042724435806
+     ]
+    }
+   ]
+  ],
+  "mode": "wasm"
+ },
+ "stored id/terms/match shadow": {
+  "log": [
+   [
+    "call",
+    "search \"apple\""
+   ],
+   [
+    "call",
+    "search \"ap\""
+   ],
+   [
+    "call",
+    "searchJoined apple"
+   ],
+   [
+    "call",
+    "searchJoined OR apple"
+   ],
+   [
+    "call",
+    "searchJoinedOpts apple"
+   ],
+   [
+    "call",
+    "searchRaw apple"
+   ],
+   [
+    "call",
+    "autoSuggestJoined apple"
+   ]
+  ],
+  "outputs": [
+   [
+    "search \"apple\"",
+    [
+     {
+      "id": 6,
+      "score": 3.978900245986998,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      },
+      "title": "apple apple"
+     },
+     {
+      "id": 1,
+      "score": 1.9730052046054503,
+      "terms": [
+       "apple",
+       "apples"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ],
+       "apples": [
+        "text"
+       ]
+      },
+      "title": "apple pie"
+     },
+     {
+      "id": 3,
+      "score": 1.5218119628420257,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      },
+      "title": "banana bread"
+     },
+     {
+      "id": 4,
+      "score": 0.5435042724435806,
+      "terms": [
+       "apples"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apples": [
+        "text"
+       ]
+      },
+      "title": "pear tart"
+     }
+    ]
+   ],
+   [
+    "search \"ap\"",
+    [
+     {
+      "id": 2,
+      "score": 1.4536083788788452,
+      "terms": [
+       "apricot"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apricot": [
+        "title",
+        "text"
+       ]
+      },
+      "title": "apricot jam"
+     },
+     {
+      "id": 6,
+      "score": 1.264481010377224,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      },
+      "title": "apple apple"
+     },
+     {
+      "id": 4,
+      "score": 1.1725548098780747,
+      "terms": [
+       "apricots",
+       "apples"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apricots": [
+        "text"
+       ],
+       "apples": [
+        "text"
+       ]
+      },
+      "title": "pear tart"
+     },
+     {
+      "id": 1,
+      "score": 0.9065206260780778,
+      "terms": [
+       "apples",
+       "apple"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apples": [
+        "text"
+       ],
+       "apple": [
+        "title"
+       ]
+      },
+      "title": "apple pie"
+     },
+     {
+      "id": 3,
+      "score": 0.4836266831065759,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      },
+      "title": "banana bread"
+     }
+    ]
+   ],
+   [
+    "searchJoined apple",
+    {
+     "count": 3,
+     "ids": "[6,3,1]",
+     "scores": [
+      3.978900245986998,
+      1.5218119628420257,
+      1.4713818022555065
+     ],
+     "terms": "apple\napple\napple"
+    }
+   ],
+   [
+    "searchJoined OR apple",
+    {
+     "count": 3,
+     "ids": "[6,3,1]",
+     "scores": [
+      3.978900245986998,
+      1.5218119628420257,
+      1.4713818022555065
+     ],
+     "terms": "apple\napple\napple"
+    }
+   ],
+   [
+    "searchJoinedOpts apple",
+    {
+     "count": 4,
+     "ids": "[6,1,3,4]",
+     "scores": [
+      3.978900245986998,
+      1.9730052046054503,
+      1.5218119628420257,
+      0.5435042724435806
+     ],
+     "terms": "apple\napple apples\napple\napples"
+    }
+   ],
+   [
+    "searchRaw apple",
+    {
+     "count": 3,
+     "docIds": [
+      5,
+      2,
+      0
+     ],
+     "scores": [
+      3.978900245986998,
+      1.5218119628420257,
+      1.4713818022555065
+     ],
+     "termTable": "apple",
+     "termOffsets": [
+      0,
+      1,
+      2,
+      3
+     ],
+     "termIds": [
+      0,
+      0,
+      0
+     ]
+    }
+   ],
+   [
+    "autoSuggestJoined apple",
+    {
+     "count": 3,
+     "suggestions": "apple\napple apples\napples",
+     "scores": [
+      2.7503561044145117,
+      1.9730052046054503,
+      0.5435042724435806
+     ]
+    }
+   ]
+  ],
+  "mode": "wasm"
+ },
+ "stored score, dirty index": {
+  "log": [
+   [
+    "call",
+    "search \"apple\""
+   ],
+   [
+    "call",
+    "search \"apple\""
+   ],
+   [
+    "call",
+    "search \"ap\""
+   ],
+   [
+    "call",
+    "searchJoined apple"
+   ],
+   [
+    "call",
+    "searchJoined OR apple"
+   ],
+   [
+    "call",
+    "searchJoinedOpts apple"
+   ],
+   [
+    "call",
+    "searchRaw apple"
+   ],
+   [
+    "call",
+    "autoSuggestJoined apple"
+   ]
+  ],
+  "outputs": [
+   [
+    "search \"apple\"",
+    [
+     {
+      "id": 1,
+      "score": 5,
+      "terms": [
+       "apple",
+       "apples"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ],
+       "apples": [
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "score": 3,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 4,
+      "score": 3,
+      "terms": [
+       "apples"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apples": [
+        "text"
+       ]
+      }
+     }
+    ]
+   ],
+   [
+    "search \"apple\"",
+    [
+     {
+      "id": 1,
+      "score": 5,
+      "terms": [
+       "apple",
+       "apples"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ],
+       "apples": [
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "score": 3,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 4,
+      "score": 3,
+      "terms": [
+       "apples"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apples": [
+        "text"
+       ]
+      }
+     }
+    ]
+   ],
+   [
+    "search \"ap\"",
+    [
+     {
+      "id": 1,
+      "score": 5,
+      "terms": [
+       "apples",
+       "apple"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apples": [
+        "text"
+       ],
+       "apple": [
+        "title"
+       ]
+      }
+     },
+     {
+      "id": 4,
+      "score": 3,
+      "terms": [
+       "apricots",
+       "apples"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apricots": [
+        "text"
+       ],
+       "apples": [
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "score": 3,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      }
+     }
+    ]
+   ],
+   [
+    "searchJoined apple",
+    {
+     "count": 3,
+     "ids": "[1,6,3]",
+     "scores": [
+      1.0038683304661276,
+      2.682657362538004,
+      1.0164682296390253
+     ],
+     "terms": "apple\napple\napple"
+    }
+   ],
+   [
+    "searchJoined OR apple",
+    {
+     "count": 3,
+     "ids": "[1,6,3]",
+     "scores": [
+      1.0038683304661276,
+      2.682657362538004,
+      1.0164682296390253
+     ],
+     "terms": "apple\napple\napple"
+    }
+   ],
+   [
+    "searchJoinedOpts apple",
+    {
+     "count": 4,
+     "ids": "[1,6,3,4]",
+     "scores": [
+      1.3385872908974894,
+      2.682657362538004,
+      1.0164682296390253,
+      0.36302436772822333
+     ],
+     "terms": "apple apples\napple\napple\napples"
+    }
+   ],
+   [
+    "searchRaw apple",
+    {
+     "count": 3,
+     "docIds": [
+      0,
+      5,
+      2
+     ],
+     "scores": [
+      1.0038683304661276,
+      2.682657362538004,
+      1.0164682296390253
+     ],
+     "termTable": "apple",
+     "termOffsets": [
+      0,
+      1,
+      2,
+      3
+     ],
+     "termIds": [
+      0,
+      0,
+      0
+     ]
+    }
+   ],
+   [
+    "autoSuggestJoined apple",
+    {
+     "count": 3,
+     "suggestions": "apple\napple apples\napples",
+     "scores": [
+      1.8495627960885146,
+      1.3385872908974894,
+      0.36302436772822333
+     ]
+    }
+   ]
+  ],
+  "mode": "wasm"
+ },
+ "filter mutating scores": {
+  "log": [
+   [
+    "call",
+    "search apple filter"
+   ],
+   [
+    "filter",
+    {
+     "id": 1,
+     "score": 1,
+     "terms": [
+      "apple"
+     ],
+     "queryTerms": [
+      "apple"
+     ],
+     "match": {
+      "apple": [
+       "title"
+      ]
+     }
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 6,
+     "score": 0,
+     "terms": [
+      "apple"
+     ],
+     "queryTerms": [
+      "apple"
+     ],
+     "match": {
+      "apple": [
+       "title",
+       "text"
+      ]
+     }
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 3,
+     "score": 0,
+     "terms": [
+      "apple"
+     ],
+     "queryTerms": [
+      "apple"
+     ],
+     "match": {
+      "apple": [
+       "text"
+      ]
+     }
+    }
+   ],
+   [
+    "call",
+    "search tree filter"
+   ],
+   [
+    "filter",
+    {
+     "id": 1,
+     "score": 1,
+     "terms": [
+      "apple"
+     ],
+     "queryTerms": [
+      "apple"
+     ],
+     "match": {
+      "apple": [
+       "title"
+      ]
+     }
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 6,
+     "score": 0,
+     "terms": [
+      "apple"
+     ],
+     "queryTerms": [
+      "apple"
+     ],
+     "match": {
+      "apple": [
+       "title",
+       "text"
+      ]
+     }
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 3,
+     "score": 0,
+     "terms": [
+      "apple"
+     ],
+     "queryTerms": [
+      "apple"
+     ],
+     "match": {
+      "apple": [
+       "text"
+      ]
+     }
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 4,
+     "score": 1,
+     "terms": [
+      "pear",
+      "tart"
+     ],
+     "queryTerms": [
+      "pear",
+      "tart"
+     ],
+     "match": {
+      "pear": [
+       "title"
+      ],
+      "tart": [
+       "title"
+      ]
+     }
+    }
+   ],
+   [
+    "call",
+    "search wildcard filter"
+   ],
+   [
+    "filter",
+    {
+     "id": 1,
+     "score": 1,
+     "terms": [],
+     "queryTerms": [],
+     "match": {}
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 2,
+     "score": 2,
+     "terms": [],
+     "queryTerms": [],
+     "match": {}
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 3,
+     "score": 0,
+     "terms": [],
+     "queryTerms": [],
+     "match": {}
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 4,
+     "score": 1,
+     "terms": [],
+     "queryTerms": [],
+     "match": {}
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 5,
+     "score": 2,
+     "terms": [],
+     "queryTerms": [],
+     "match": {}
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 6,
+     "score": 0,
+     "terms": [],
+     "queryTerms": [],
+     "match": {}
+    }
+   ],
+   [
+    "call",
+    "searchJoinedOpts filter"
+   ],
+   [
+    "filter",
+    {
+     "id": 1,
+     "score": 5,
+     "terms": [
+      "apple"
+     ],
+     "queryTerms": [
+      "apple"
+     ],
+     "match": {
+      "apple": [
+       "title"
+      ]
+     }
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 6,
+     "score": "§NaN",
+     "terms": [
+      "apple"
+     ],
+     "queryTerms": [
+      "apple"
+     ],
+     "match": {
+      "apple": [
+       "title",
+       "text"
+      ]
+     }
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 3,
+     "score": 3,
+     "terms": [
+      "apple"
+     ],
+     "queryTerms": [
+      "apple"
+     ],
+     "match": {
+      "apple": [
+       "text"
+      ]
+     }
+    }
+   ],
+   [
+    "call",
+    "searchRaw filter"
+   ],
+   [
+    "filter",
+    {
+     "id": 1,
+     "score": 5,
+     "terms": [
+      "apple"
+     ],
+     "queryTerms": [
+      "apple"
+     ],
+     "match": {
+      "apple": [
+       "title"
+      ]
+     }
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 6,
+     "score": "§NaN",
+     "terms": [
+      "apple"
+     ],
+     "queryTerms": [
+      "apple"
+     ],
+     "match": {
+      "apple": [
+       "title",
+       "text"
+      ]
+     }
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 3,
+     "score": 3,
+     "terms": [
+      "apple"
+     ],
+     "queryTerms": [
+      "apple"
+     ],
+     "match": {
+      "apple": [
+       "text"
+      ]
+     }
+    }
+   ]
+  ],
+  "outputs": [
+   [
+    "search apple filter",
+    [
+     {
+      "id": 1,
+      "score": 1,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ]
+      }
+     },
+     {
+      "id": 6,
+      "score": 0,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "score": 0,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      }
+     }
+    ]
+   ],
+   [
+    "search tree filter",
+    [
+     {
+      "id": 1,
+      "score": 1,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ]
+      }
+     },
+     {
+      "id": 6,
+      "score": 0,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "score": 0,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      }
+     }
+    ]
+   ],
+   [
+    "search wildcard filter",
+    [
+     {
+      "id": 1,
+      "score": 1,
+      "terms": [],
+      "queryTerms": [],
+      "match": {}
+     },
+     {
+      "id": 2,
+      "score": 2,
+      "terms": [],
+      "queryTerms": [],
+      "match": {}
+     },
+     {
+      "id": 3,
+      "score": 0,
+      "terms": [],
+      "queryTerms": [],
+      "match": {}
+     },
+     {
+      "id": 5,
+      "score": 2,
+      "terms": [],
+      "queryTerms": [],
+      "match": {}
+     },
+     {
+      "id": 6,
+      "score": 0,
+      "terms": [],
+      "queryTerms": [],
+      "match": {}
+     }
+    ]
+   ],
+   [
+    "searchJoinedOpts filter",
+    {
+     "count": 2,
+     "ids": "[6,3]",
+     "scores": [
+      3.978900245986998,
+      1.5218119628420257
+     ],
+     "terms": "apple\napple"
+    }
+   ],
+   [
+    "searchRaw filter",
+    {
+     "count": 2,
+     "docIds": [
+      5,
+      2
+     ],
+     "scores": [
+      3.978900245986998,
+      1.5218119628420257
+     ],
+     "termTable": "apple",
+     "termOffsets": [
+      0,
+      1,
+      2
+     ],
+     "termIds": [
+      0,
+      0
+     ]
+    }
+   ]
+  ],
+  "mode": "wasm"
+ },
+ "boostDocument and boostTerm": {
+  "log": [
+   [
+    "call",
+    "search boostDocument"
+   ],
+   [
+    "boostDocument",
+    1,
+    "apple",
+    {
+     "title": "apple pie"
+    }
+   ],
+   [
+    "boostDocument",
+    6,
+    "apple",
+    {
+     "title": "apple apple"
+    }
+   ],
+   [
+    "boostDocument",
+    3,
+    "apple",
+    {
+     "title": "banana bread"
+    }
+   ],
+   [
+    "boostDocument",
+    6,
+    "apple",
+    {
+     "title": "apple apple"
+    }
+   ],
+   [
+    "boostDocument",
+    1,
+    "apples",
+    {
+     "title": "apple pie"
+    }
+   ],
+   [
+    "boostDocument",
+    4,
+    "apples",
+    {
+     "title": "pear tart"
+    }
+   ],
+   [
+    "boostDocument",
+    4,
+    "apricots",
+    {
+     "title": "pear tart"
+    }
+   ],
+   [
+    "boostDocument",
+    2,
+    "apricot",
+    {
+     "title": "apricot jam"
+    }
+   ],
+   [
+    "boostDocument",
+    2,
+    "apricot",
+    {
+     "title": "apricot jam"
+    }
+   ],
+   [
+    "boostDocument",
+    1,
+    "apples",
+    {
+     "title": "apple pie"
+    }
+   ],
+   [
+    "boostDocument",
+    4,
+    "apples",
+    {
+     "title": "pear tart"
+    }
+   ],
+   [
+    "boostDocument",
+    1,
+    "apple",
+    {
+     "title": "apple pie"
+    }
+   ],
+   [
+    "boostDocument",
+    6,
+    "apple",
+    {
+     "title": "apple apple"
+    }
+   ],
+   [
+    "boostDocument",
+    3,
+    "apple",
+    {
+     "title": "banana bread"
+    }
+   ],
+   [
+    "boostDocument",
+    6,
+    "apple",
+    {
+     "title": "apple apple"
+    }
+   ],
+   [
+    "call",
+    "search boostTerm"
+   ],
+   [
+    "boostTerm",
+    "apple",
+    0,
+    [
+     "apple",
+     "pear"
+    ]
+   ],
+   [
+    "boostTerm",
+    "pear",
+    1,
+    [
+     "apple",
+     "pear"
+    ]
+   ],
+   [
+    "call",
+    "search wildcard boostDocument"
+   ],
+   [
+    "boostDocument",
+    1,
+    "",
+    {
+     "title": "apple pie"
+    }
+   ],
+   [
+    "boostDocument",
+    2,
+    "",
+    {
+     "title": "apricot jam"
+    }
+   ],
+   [
+    "boostDocument",
+    3,
+    "",
+    {
+     "title": "banana bread"
+    }
+   ],
+   [
+    "boostDocument",
+    4,
+    "",
+    {
+     "title": "pear tart"
+    }
+   ],
+   [
+    "boostDocument",
+    5,
+    "",
+    {
+     "title": "cherry"
+    }
+   ],
+   [
+    "boostDocument",
+    6,
+    "",
+    {
+     "title": "apple apple"
+    }
+   ],
+   [
+    "call",
+    "autoSuggest boostDocument"
+   ],
+   [
+    "boostDocument",
+    4,
+    "apricots",
+    {
+     "title": "pear tart"
+    }
+   ],
+   [
+    "boostDocument",
+    2,
+    "apricot",
+    {
+     "title": "apricot jam"
+    }
+   ],
+   [
+    "boostDocument",
+    2,
+    "apricot",
+    {
+     "title": "apricot jam"
+    }
+   ],
+   [
+    "boostDocument",
+    1,
+    "apples",
+    {
+     "title": "apple pie"
+    }
+   ],
+   [
+    "boostDocument",
+    4,
+    "apples",
+    {
+     "title": "pear tart"
+    }
+   ],
+   [
+    "boostDocument",
+    1,
+    "apple",
+    {
+     "title": "apple pie"
+    }
+   ],
+   [
+    "boostDocument",
+    6,
+    "apple",
+    {
+     "title": "apple apple"
+    }
+   ],
+   [
+    "boostDocument",
+    3,
+    "apple",
+    {
+     "title": "banana bread"
+    }
+   ],
+   [
+    "boostDocument",
+    6,
+    "apple",
+    {
+     "title": "apple apple"
+    }
+   ]
+  ],
+  "outputs": [
+   [
+    "search boostDocument",
+    [
+     {
+      "id": 6,
+      "score": 16.77882002036551,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple",
+       "ap"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      },
+      "title": "apple apple"
+     },
+     {
+      "id": 1,
+      "score": 6.334956827503762,
+      "terms": [
+       "apple",
+       "apples"
+      ],
+      "queryTerms": [
+       "apple",
+       "ap"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ],
+       "apples": [
+        "text"
+       ]
+      },
+      "title": "apple pie"
+     },
+     {
+      "id": 4,
+      "score": 4.8049654305006335,
+      "terms": [
+       "apples",
+       "apricots"
+      ],
+      "queryTerms": [
+       "apple",
+       "ap"
+      ],
+      "match": {
+       "apples": [
+        "text"
+       ],
+       "apricots": [
+        "text"
+       ]
+      },
+      "title": "pear tart"
+     },
+     {
+      "id": 2,
+      "score": 1.7443300546546143,
+      "terms": [
+       "apricot"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apricot": [
+        "title",
+        "text"
+       ]
+      },
+      "title": "apricot jam"
+     }
+    ]
+   ],
+   [
+    "search boostTerm",
+    [
+     {
+      "id": 4,
+      "score": 4.402758461625973,
+      "terms": [
+       "pear"
+      ],
+      "queryTerms": [
+       "pear"
+      ],
+      "match": {
+       "pear": [
+        "title"
+       ]
+      },
+      "title": "pear tart"
+     },
+     {
+      "id": 6,
+      "score": 3.978900245986998,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      },
+      "title": "apple apple"
+     },
+     {
+      "id": 3,
+      "score": 1.5218119628420257,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      },
+      "title": "banana bread"
+     },
+     {
+      "id": 1,
+      "score": 1.4713818022555065,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ]
+      },
+      "title": "apple pie"
+     }
+    ]
+   ],
+   [
+    "search wildcard boostDocument",
+    [
+     {
+      "id": 1,
+      "score": 2,
+      "terms": [],
+      "queryTerms": [],
+      "match": {},
+      "title": "apple pie"
+     },
+     {
+      "id": 3,
+      "score": 2,
+      "terms": [],
+      "queryTerms": [],
+      "match": {},
+      "title": "banana bread"
+     },
+     {
+      "id": 5,
+      "score": 2,
+      "terms": [],
+      "queryTerms": [],
+      "match": {},
+      "title": "cherry"
+     },
+     {
+      "id": 2,
+      "score": 1,
+      "terms": [],
+      "queryTerms": [],
+      "match": {},
+      "title": "apricot jam"
+     },
+     {
+      "id": 4,
+      "score": 1,
+      "terms": [],
+      "queryTerms": [],
+      "match": {},
+      "title": "pear tart"
+     },
+     {
+      "id": 6,
+      "score": 1,
+      "terms": [],
+      "queryTerms": [],
+      "match": {},
+      "title": "apple apple"
+     }
+    ]
+   ],
+   [
+    "autoSuggest boostDocument",
+    [
+     {
+      "suggestion": "apricot",
+      "terms": [
+       "apricot"
+      ],
+      "score": 1.4536083788788452
+     },
+     {
+      "suggestion": "apricots apples",
+      "terms": [
+       "apricots",
+       "apples"
+      ],
+      "score": 1.1725548098780747
+     },
+     {
+      "suggestion": "apples apple",
+      "terms": [
+       "apples",
+       "apple"
+      ],
+      "score": 0.9065206260780778
+     },
+     {
+      "suggestion": "apple",
+      "terms": [
+       "apple"
+      ],
+      "score": 0.8740538467418999
+     }
+    ]
+   ]
+  ],
+  "mode": "wasm"
+ },
+ "prefix/fuzzy callbacks": {
+  "log": [
+   [
+    "call",
+    "search prefix fn"
+   ],
+   [
+    "fuzzy",
+    "ap",
+    0,
+    [
+     "ap",
+     "pea"
+    ]
+   ],
+   [
+    "prefix",
+    "ap",
+    0,
+    [
+     "ap",
+     "pea"
+    ]
+   ],
+   [
+    "fuzzy",
+    "pea",
+    1,
+    [
+     "ap",
+     "pea"
+    ]
+   ],
+   [
+    "prefix",
+    "pea",
+    1,
+    [
+     "ap",
+     "pea"
+    ]
+   ],
+   [
+    "call",
+    "searchJoinedOpts fn"
+   ],
+   [
+    "prefix",
+    "ap",
+    0,
+    [
+     "ap",
+     "pea"
+    ]
+   ],
+   [
+    "prefix",
+    "pea",
+    1,
+    [
+     "ap",
+     "pea"
+    ]
+   ]
+  ],
+  "outputs": [
+   [
+    "search prefix fn",
+    [
+     {
+      "id": 2,
+      "score": 1.4536083788788452,
+      "terms": [
+       "apricot"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apricot": [
+        "title",
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 6,
+      "score": 1.264481010377224,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 4,
+      "score": 1.1725548098780747,
+      "terms": [
+       "apricots",
+       "apples"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apricots": [
+        "text"
+       ],
+       "apples": [
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 1,
+      "score": 0.9065206260780778,
+      "terms": [
+       "apples",
+       "apple"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apples": [
+        "text"
+       ],
+       "apple": [
+        "title"
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "score": 0.4836266831065759,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "ap"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      }
+     }
+    ]
+   ],
+   [
+    "searchJoinedOpts fn",
+    {
+     "count": 5,
+     "ids": "[4,1,2,6,3]",
+     "scores": [
+      4.900026105573668,
+      2.7535851315623,
+      1.4536083788788452,
+      1.264481010377224,
+      0.4836266831065759
+     ],
+     "terms": "apricots apples pear pears\napples apple pears\napricot\napple\napple"
+    }
+   ]
+  ],
+  "mode": "wasm"
+ },
+ "throwing callbacks": {
+  "log": [
+   [
+    "call",
+    "filter throws"
+   ],
+   [
+    "filter",
+    {
+     "id": 1,
+     "score": 5,
+     "terms": [
+      "apple"
+     ],
+     "queryTerms": [
+      "apple"
+     ],
+     "match": {
+      "apple": [
+       "title"
+      ]
+     }
+    }
+   ],
+   [
+    "filter",
+    {
+     "id": 6,
+     "score": "§NaN",
+     "terms": [
+      "apple"
+     ],
+     "queryTerms": [
+      "apple"
+     ],
+     "match": {
+      "apple": [
+       "title",
+       "text"
+      ]
+     }
+    }
+   ],
+   [
+    "call",
+    "boostDocument throws"
+   ],
+   [
+    "boostDocument",
+    1,
+    "apple",
+    {
+     "score": 5
+    }
+   ],
+   [
+    "boostDocument",
+    6,
+    "apple",
+    {
+     "score": "§NaN"
+    }
+   ],
+   [
+    "call",
+    "after throws"
+   ]
+  ],
+  "outputs": [
+   [
+    "filter throws",
+    "throws: filter stop"
+   ],
+   [
+    "boostDocument throws",
+    "throws: boost stop"
+   ],
+   [
+    "after throws",
+    [
+     {
+      "id": 1,
+      "score": 5,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ]
+      }
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "score": 3,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      }
+     }
+    ]
+   ]
+  ],
+  "mode": "wasm"
+ },
+ "tokenize/processTerm": {
+  "log": [
+   [
+    "tokenize",
+    "apple pie",
+    "title"
+   ],
+   [
+    "processTerm",
+    "apple",
+    "title"
+   ],
+   [
+    "processTerm",
+    "pie",
+    "title"
+   ],
+   [
+    "tokenize",
+    "baked apples and pears",
+    "text"
+   ],
+   [
+    "processTerm",
+    "baked",
+    "text"
+   ],
+   [
+    "processTerm",
+    "apples",
+    "text"
+   ],
+   [
+    "processTerm",
+    "and",
+    "text"
+   ],
+   [
+    "processTerm",
+    "pears",
+    "text"
+   ],
+   [
+    "tokenize",
+    "apricot jam",
+    "title"
+   ],
+   [
+    "processTerm",
+    "apricot",
+    "title"
+   ],
+   [
+    "processTerm",
+    "jam",
+    "title"
+   ],
+   [
+    "tokenize",
+    "sweet apricot",
+    "text"
+   ],
+   [
+    "processTerm",
+    "sweet",
+    "text"
+   ],
+   [
+    "processTerm",
+    "apricot",
+    "text"
+   ],
+   [
+    "tokenize",
+    "banana bread",
+    "title"
+   ],
+   [
+    "processTerm",
+    "banana",
+    "title"
+   ],
+   [
+    "processTerm",
+    "bread",
+    "title"
+   ],
+   [
+    "tokenize",
+    "apple banana loaf",
+    "text"
+   ],
+   [
+    "processTerm",
+    "apple",
+    "text"
+   ],
+   [
+    "processTerm",
+    "banana",
+    "text"
+   ],
+   [
+    "processTerm",
+    "loaf",
+    "text"
+   ],
+   [
+    "tokenize",
+    "pear tart",
+    "title"
+   ],
+   [
+    "processTerm",
+    "pear",
+    "title"
+   ],
+   [
+    "processTerm",
+    "tart",
+    "title"
+   ],
+   [
+    "tokenize",
+    "pears apples apricots",
+    "text"
+   ],
+   [
+    "processTerm",
+    "pears",
+    "text"
+   ],
+   [
+    "processTerm",
+    "apples",
+    "text"
+   ],
+   [
+    "processTerm",
+    "apricots",
+    "text"
+   ],
+   [
+    "tokenize",
+    "cherry",
+    "title"
+   ],
+   [
+    "processTerm",
+    "cherry",
+    "title"
+   ],
+   [
+    "tokenize",
+    "no fruit named here",
+    "text"
+   ],
+   [
+    "processTerm",
+    "no",
+    "text"
+   ],
+   [
+    "processTerm",
+    "fruit",
+    "text"
+   ],
+   [
+    "processTerm",
+    "named",
+    "text"
+   ],
+   [
+    "processTerm",
+    "here",
+    "text"
+   ],
+   [
+    "tokenize",
+    "apple apple",
+    "title"
+   ],
+   [
+    "processTerm",
+    "apple",
+    "title"
+   ],
+   [
+    "processTerm",
+    "apple",
+    "title"
+   ],
+   [
+    "tokenize",
+    "apple",
+    "text"
+   ],
+   [
+    "processTerm",
+    "apple",
+    "text"
+   ],
+   [
+    "call",
+    "search \"Apple AND pear\""
+   ],
+   [
+    "tokenize",
+    "Apple AND pear"
+   ],
+   [
+    "searchProcessTerm",
+    "Apple"
+   ],
+   [
+    "searchProcessTerm",
+    "AND"
+   ],
+   [
+    "searchProcessTerm",
+    "pear"
+   ],
+   [
+    "call",
+    "searchJoined apple"
+   ],
+   [
+    "tokenize",
+    "apple"
+   ],
+   [
+    "searchProcessTerm",
+    "apple"
+   ],
+   [
+    "tokenize",
+    "apple"
+   ],
+   [
+    "searchProcessTerm",
+    "apple"
+   ],
+   [
+    "call",
+    "searchJoined OR apple"
+   ],
+   [
+    "tokenize",
+    "apple"
+   ],
+   [
+    "searchProcessTerm",
+    "apple"
+   ],
+   [
+    "tokenize",
+    "apple"
+   ],
+   [
+    "searchProcessTerm",
+    "apple"
+   ],
+   [
+    "call",
+    "searchJoinedOpts apple"
+   ],
+   [
+    "tokenize",
+    "apple"
+   ],
+   [
+    "searchProcessTerm",
+    "apple"
+   ],
+   [
+    "call",
+    "searchRaw apple"
+   ],
+   [
+    "tokenize",
+    "apple"
+   ],
+   [
+    "searchProcessTerm",
+    "apple"
+   ],
+   [
+    "call",
+    "autoSuggestJoined apple"
+   ],
+   [
+    "tokenize",
+    "apple"
+   ],
+   [
+    "searchProcessTerm",
+    "apple"
+   ],
+   [
+    "call",
+    "add"
+   ],
+   [
+    "tokenize",
+    "Apple Kiwi",
+    "title"
+   ],
+   [
+    "processTerm",
+    "Apple",
+    "title"
+   ],
+   [
+    "processTerm",
+    "Kiwi",
+    "title"
+   ],
+   [
+    "tokenize",
+    "kiwi and apple",
+    "text"
+   ],
+   [
+    "processTerm",
+    "kiwi",
+    "text"
+   ],
+   [
+    "processTerm",
+    "and",
+    "text"
+   ],
+   [
+    "processTerm",
+    "apple",
+    "text"
+   ],
+   [
+    "call",
+    "remove"
+   ],
+   [
+    "tokenize",
+    "Apple Kiwi",
+    "title"
+   ],
+   [
+    "processTerm",
+    "Apple",
+    "title"
+   ],
+   [
+    "processTerm",
+    "Kiwi",
+    "title"
+   ],
+   [
+    "tokenize",
+    "kiwi and apple",
+    "text"
+   ],
+   [
+    "processTerm",
+    "kiwi",
+    "text"
+   ],
+   [
+    "processTerm",
+    "and",
+    "text"
+   ],
+   [
+    "processTerm",
+    "apple",
+    "text"
+   ]
+  ],
+  "outputs": [
+   [
+    "search \"Apple AND pear\"",
+    [
+     {
+      "id": 1,
+      "score": 5,
+      "terms": [
+       "apple",
+       "apples",
+       "pears"
+      ],
+      "queryTerms": [
+       "apple",
+       "pear"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ],
+       "apples": [
+        "text"
+       ],
+       "pears": [
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "score": 3,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 4,
+      "score": 3,
+      "terms": [
+       "apples",
+       "pear",
+       "pears"
+      ],
+      "queryTerms": [
+       "apple",
+       "pear"
+      ],
+      "match": {
+       "apples": [
+        "text"
+       ],
+       "pear": [
+        "title"
+       ],
+       "pears": [
+        "text"
+       ]
+      }
+     }
+    ]
+   ],
+   [
+    "searchJoined apple",
+    {
+     "count": 3,
+     "ids": "[1,6,3]",
+     "scores": [
+      1.4713818022555065,
+      3.978900245986998,
+      1.5218119628420257
+     ],
+     "terms": "apple\napple\napple"
+    }
+   ],
+   [
+    "searchJoined OR apple",
+    {
+     "count": 3,
+     "ids": "[1,6,3]",
+     "scores": [
+      1.4713818022555065,
+      3.978900245986998,
+      1.5218119628420257
+     ],
+     "terms": "apple\napple\napple"
+    }
+   ],
+   [
+    "searchJoinedOpts apple",
+    {
+     "count": 4,
+     "ids": "[1,6,3,4]",
+     "scores": [
+      1.9730052046054503,
+      3.978900245986998,
+      1.5218119628420257,
+      0.5435042724435806
+     ],
+     "terms": "apple apples\napple\napple\napples"
+    }
+   ],
+   [
+    "searchRaw apple",
+    {
+     "count": 3,
+     "docIds": [
+      0,
+      5,
+      2
+     ],
+     "scores": [
+      1.4713818022555065,
+      3.978900245986998,
+      1.5218119628420257
+     ],
+     "termTable": "apple",
+     "termOffsets": [
+      0,
+      1,
+      2,
+      3
+     ],
+     "termIds": [
+      0,
+      0,
+      0
+     ]
+    }
+   ],
+   [
+    "autoSuggestJoined apple",
+    {
+     "count": 3,
+     "suggestions": "apple\napple apples\napples",
+     "scores": [
+      2.7503561044145117,
+      1.9730052046054503,
+      0.5435042724435806
+     ]
+    }
+   ],
+   [
+    "add",
+    7
+   ],
+   [
+    "remove",
+    6
+   ]
+  ],
+  "mode": "wasm"
+ },
+ "autoSuggest": {
+  "log": [
+   [
+    "call",
+    "autoSuggest ap"
+   ],
+   [
+    "call",
+    "autoSuggest fuzzy"
+   ]
+  ],
+  "outputs": [
+   [
+    "autoSuggest ap",
+    [
+     {
+      "suggestion": "apricot",
+      "terms": [
+       "apricot"
+      ],
+      "score": 1.4536083788788452
+     },
+     {
+      "suggestion": "apricots apples",
+      "terms": [
+       "apricots",
+       "apples"
+      ],
+      "score": 1.1725548098780747
+     },
+     {
+      "suggestion": "apples apple",
+      "terms": [
+       "apples",
+       "apple"
+      ],
+      "score": 0.9065206260780778
+     },
+     {
+      "suggestion": "apple",
+      "terms": [
+       "apple"
+      ],
+      "score": 0.8740538467418999
+     }
+    ]
+   ],
+   [
+    "autoSuggest fuzzy",
+    [
+     {
+      "suggestion": "apple pears pie",
+      "terms": [
+       "apple",
+       "pears",
+       "pie"
+      ],
+      "score": 3.482186946841991
+     }
+    ]
+   ]
+  ],
+  "mode": "wasm"
+ }
+}
