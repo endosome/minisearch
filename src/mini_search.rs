@@ -397,31 +397,79 @@ impl RowTracking {
     };
 }
 
+/// One document's per-query state, together: what a posting reads and
+/// updates fits one cache line, where parallel arrays cost one line each.
+#[derive(Clone, Copy)]
+struct DocSlot {
+    /// Score across the whole query (spec subtotals flushed in).
+    score: f64,
+    /// Subtotal for the spec currently accumulating.
+    spec_score: f64,
+    /// The distinct query terms already counted, by slot; slots past the
+    /// mask's width are kept in `Scratch::wide_terms`.
+    term_mask: u64,
+    /// Query and spec generation stamps: the slot is reset lazily, the first
+    /// time a query (spec) touches the document.
+    generation: u32,
+    spec_generation: u32,
+    /// Number of specs that matched.
+    spec_count: u32,
+    /// Number of distinct query terms that matched (quality factor).
+    term_count: u32,
+    /// Index of the first spec that touched the doc (for `AND_NOT`).
+    first_spec: u32,
+    /// Id of the derived term most recently accumulated into the doc. A
+    /// term's fields are processed back to back, so comparing against this
+    /// skips the `terms` membership scan for all but the first posting of
+    /// each (doc, term) pair.
+    last_term: u32,
+    /// Index in the row's `terms` of `last_term`.
+    last_pos: u32,
+    /// The document's row in `Scratch::rows` this query.
+    row: u32,
+}
+
+impl Default for DocSlot {
+    fn default() -> Self {
+        Self {
+            score: 0.0,
+            spec_score: 0.0,
+            term_mask: 0,
+            generation: 0,
+            spec_generation: 0,
+            spec_count: 0,
+            term_count: 0,
+            first_spec: 0,
+            last_term: u32::MAX,
+            last_pos: 0,
+            row: 0,
+        }
+    }
+}
+
 #[derive(Default)]
 struct Scratch {
-    /// Per-doc score across the whole query (spec subtotals flushed in).
-    score: Vec<f64>,
-    /// Per-doc subtotal for the spec currently accumulating.
-    spec_score: Vec<f64>,
-    /// Per-doc matched derived terms, as `table` ids, in first-match order.
-    terms: Vec<Vec<u32>>,
-    /// Per-doc number of specs that matched.
-    spec_count: Vec<u32>,
-    /// Per-doc number of distinct query terms that matched (quality factor).
-    term_count: Vec<u32>,
-    /// Per-doc set of the distinct query terms already counted, by slot; slots
-    /// past the mask's width are kept in `wide_terms`.
-    term_mask: Vec<u64>,
+    /// Per document id.
+    slots: Vec<DocSlot>,
+    /// The variable-length part of the touched documents' state, by row:
+    /// `touched[r]` owns entry `r` of each. Rows are handed out in touch
+    /// order and reused from query to query (their buffers keep their
+    /// capacity), so their number follows the documents a query touches, not
+    /// the index's historical ids. Entries past `touched.len()` are spare.
+    ///
+    /// Matched derived terms, as `table` ids, in first-match order.
+    row_terms: Vec<Vec<u32>>,
+    /// Parallel to the row's terms, when tracking match fields: the fields a
+    /// derived term was found in by the last spec that reached it, as `(spec
+    /// index, field bit mask)`. JS merges specs with
+    /// `Object.assign(existing.match, match)`, so a later spec's field list
+    /// replaces an earlier one while the key keeps its place.
+    row_fields: Vec<Vec<(u32, u64)>>,
+    /// When tracking query terms: the distinct query-term slots in
+    /// first-match order, JS `queryTerms` as `assignUniqueTerms` builds it
+    /// across the merged specs.
+    row_query_slots: Vec<Vec<u32>>,
     wide_terms: HashSet<(ShortId, u32)>,
-    /// Per-doc index of the first spec that touched the doc (for `AND_NOT`).
-    first_spec: Vec<u32>,
-    /// Per-doc id of the derived term most recently accumulated into the
-    /// doc. A term's fields are processed back to back, so comparing against
-    /// this skips the `terms` membership scan for all but the first posting
-    /// of each (doc, term) pair.
-    last_term: Vec<u32>,
-    generation: Vec<u32>,
-    spec_generation: Vec<u32>,
     query_counter: u32,
     spec_counter: u32,
     touched: Vec<ShortId>,
@@ -435,45 +483,19 @@ struct Scratch {
     /// What this pass records beyond scores and derived terms (see
     /// [`RowTracking`]). Nothing for the compact paths.
     tracking: RowTracking,
-    /// Per doc, parallel to `terms`: the fields a derived term was found in by
-    /// the last spec that reached it, as `(spec index, field bit mask)`. JS
-    /// merges specs with `Object.assign(existing.match, match)`, so a later
-    /// spec's field list replaces an earlier one while the key keeps its place.
-    term_fields: Vec<Vec<(u32, u64)>>,
-    /// Per doc, the index in `terms` of `last_term`.
-    last_pos: Vec<u32>,
-    /// Per doc, the distinct query-term slots in first-match order: JS
-    /// `queryTerms`, built by `assignUniqueTerms` across the merged specs.
-    query_slots: Vec<Vec<u32>>,
 }
 
 impl Scratch {
     /// Grow to hold `len` docs and start a fresh query pass.
     fn begin_query(&mut self, len: usize, tracking: RowTracking) {
-        if self.score.len() < len {
-            self.score.resize(len, 0.0);
-            self.spec_score.resize(len, 0.0);
-            self.terms.resize_with(len, Vec::new);
-            self.spec_count.resize(len, 0);
-            self.term_count.resize(len, 0);
-            self.term_mask.resize(len, 0);
-            self.first_spec.resize(len, 0);
-            self.last_term.resize(len, u32::MAX);
-            self.generation.resize(len, 0);
-            self.spec_generation.resize(len, 0);
+        if self.slots.len() < len {
+            self.slots.resize(len, DocSlot::default());
         }
         self.tracking = tracking;
-        if tracking.match_fields && self.term_fields.len() < len {
-            self.term_fields.resize_with(len, Vec::new);
-            self.last_pos.resize(len, 0);
-        }
-        if tracking.query_terms && self.query_slots.len() < len {
-            self.query_slots.resize_with(len, Vec::new);
-        }
         self.query_counter = self.query_counter.wrapping_add(1);
         if self.query_counter == 0 {
             // Wrapped after ~4B passes: clear stamps so none collide with gen 0.
-            self.generation.iter_mut().for_each(|g| *g = 0);
+            self.slots.iter_mut().for_each(|slot| slot.generation = 0);
             self.query_counter = 1;
         }
         self.touched.clear();
@@ -487,7 +509,9 @@ impl Scratch {
     fn begin_spec(&mut self) {
         self.spec_counter = self.spec_counter.wrapping_add(1);
         if self.spec_counter == 0 {
-            self.spec_generation.iter_mut().for_each(|g| *g = 0);
+            self.slots
+                .iter_mut()
+                .for_each(|slot| slot.spec_generation = 0);
             self.spec_counter = 1;
         }
         self.spec_touched.clear();
@@ -497,8 +521,8 @@ impl Scratch {
     /// addition per doc per spec, preserving the old merge's float order.
     fn flush_spec(&mut self) {
         for &doc in &self.spec_touched {
-            let i = doc as usize;
-            self.score[i] += self.spec_score[i];
+            let slot = &mut self.slots[doc as usize];
+            slot.score += slot.spec_score;
         }
     }
 
@@ -516,44 +540,45 @@ impl Scratch {
         id
     }
 
-    /// Reset `doc`'s slots the first time it is seen this query/spec and
+    /// Reset `doc`'s slot the first time it is seen this query/spec and
     /// record the spec-membership counters. `term_slot` numbers the spec's
     /// query term among the query's distinct terms.
     #[inline]
     fn touch(&mut self, doc: ShortId, spec_index: u32, term_slot: u32) -> usize {
         let i = doc as usize;
-        if self.generation[i] != self.query_counter {
-            self.generation[i] = self.query_counter;
-            self.score[i] = 0.0;
-            self.terms[i].clear();
-            self.spec_count[i] = 0;
-            self.term_count[i] = 0;
-            self.term_mask[i] = 0;
-            self.first_spec[i] = spec_index;
-            self.last_term[i] = u32::MAX;
+        let slot = &mut self.slots[i];
+        if slot.generation != self.query_counter {
+            let row = self.touched.len();
+            reuse_row(&mut self.row_terms, row);
             if self.tracking.match_fields {
-                self.term_fields[i].clear();
+                reuse_row(&mut self.row_fields, row);
             }
             if self.tracking.query_terms {
-                self.query_slots[i].clear();
+                reuse_row(&mut self.row_query_slots, row);
             }
+            *slot = DocSlot {
+                generation: self.query_counter,
+                first_spec: spec_index,
+                row: row as u32,
+                ..DocSlot::default()
+            };
             self.touched.push(doc);
         }
-        if self.spec_generation[i] != self.spec_counter {
-            self.spec_generation[i] = self.spec_counter;
-            self.spec_score[i] = 0.0;
-            self.spec_count[i] += 1;
+        if slot.spec_generation != self.spec_counter {
+            slot.spec_generation = self.spec_counter;
+            slot.spec_score = 0.0;
+            slot.spec_count += 1;
             let first_match = match 1u64.checked_shl(term_slot) {
                 Some(bit) => {
-                    let unseen = self.term_mask[i] & bit == 0;
-                    self.term_mask[i] |= bit;
+                    let unseen = slot.term_mask & bit == 0;
+                    slot.term_mask |= bit;
                     unseen
                 }
                 None => self.wide_terms.insert((doc, term_slot)),
             };
-            self.term_count[i] += u32::from(first_match);
+            slot.term_count += u32::from(first_match);
             if first_match && self.tracking.query_terms {
-                self.query_slots[i].push(term_slot);
+                self.row_query_slots[slot.row as usize].push(term_slot);
             }
             self.spec_touched.push(doc);
         }
@@ -566,29 +591,41 @@ impl Scratch {
     /// set.
     #[inline]
     fn record_term(&mut self, i: usize, term_id: u32, spec_index: u32, field_id: FieldId) {
-        if self.last_term[i] != term_id {
-            self.last_term[i] = term_id;
-            let position = match self.terms[i].iter().position(|&id| id == term_id) {
+        let slot = &mut self.slots[i];
+        // The row only when needed: a term's postings repeat it back to back,
+        // and the compact paths track no match fields.
+        if slot.last_term != term_id {
+            slot.last_term = term_id;
+            let terms = &mut self.row_terms[slot.row as usize];
+            let position = match terms.iter().position(|&id| id == term_id) {
                 Some(position) => position,
                 None => {
-                    self.terms[i].push(term_id);
+                    terms.push(term_id);
                     if self.tracking.match_fields {
-                        self.term_fields[i].push((spec_index, 0));
+                        self.row_fields[slot.row as usize].push((spec_index, 0));
                     }
-                    self.terms[i].len() - 1
+                    terms.len() - 1
                 }
             };
-            if self.tracking.match_fields {
-                self.last_pos[i] = position as u32;
-            }
+            slot.last_pos = position as u32;
         }
         if self.tracking.match_fields {
-            let entry = &mut self.term_fields[i][self.last_pos[i] as usize];
+            let entry = &mut self.row_fields[slot.row as usize][slot.last_pos as usize];
             if entry.0 != spec_index {
                 *entry = (spec_index, 0);
             }
             entry.1 |= 1u64 << field_id;
         }
+    }
+}
+
+/// Ready row `row` of a per-row buffer for a newly touched document: empty,
+/// keeping its capacity, or new.
+#[inline]
+fn reuse_row<T>(rows: &mut Vec<Vec<T>>, row: usize) {
+    match rows.get_mut(row) {
+        Some(reused) => reused.clear(),
+        None => rows.resize_with(row + 1, Vec::new),
     }
 }
 
@@ -600,38 +637,29 @@ pub(crate) fn scratch_footprint() -> (usize, usize) {
     fn outer<T>(list: &Vec<T>) -> usize {
         list.capacity() * size_of::<T>()
     }
-    fn nested<T>(lists: &[Vec<T>]) -> usize {
-        lists
-            .iter()
-            .map(|list| list.capacity() * size_of::<T>())
-            .sum()
-    }
     SCRATCH.with(|cell| {
         let scratch = cell.borrow();
-        let bytes = outer(&scratch.score)
-            + outer(&scratch.spec_score)
-            + outer(&scratch.terms)
-            + nested(&scratch.terms)
-            + outer(&scratch.spec_count)
-            + outer(&scratch.term_count)
-            + outer(&scratch.term_mask)
+        fn nested<T>(lists: &[Vec<T>]) -> usize {
+            lists
+                .iter()
+                .map(|list| list.capacity() * size_of::<T>())
+                .sum()
+        }
+        let bytes = outer(&scratch.slots)
+            + outer(&scratch.row_terms)
+            + nested(&scratch.row_terms)
+            + outer(&scratch.row_fields)
+            + nested(&scratch.row_fields)
+            + outer(&scratch.row_query_slots)
+            + nested(&scratch.row_query_slots)
             + scratch.wide_terms.capacity() * size_of::<(ShortId, u32)>()
-            + outer(&scratch.first_spec)
-            + outer(&scratch.last_term)
-            + outer(&scratch.generation)
-            + outer(&scratch.spec_generation)
             + outer(&scratch.touched)
             + outer(&scratch.spec_touched)
             + outer(&scratch.table)
             + scratch.table.iter().map(String::capacity).sum::<usize>()
             + outer(&scratch.table_index)
-            + scratch.lookup.capacity() * size_of::<(String, u32)>()
-            + outer(&scratch.term_fields)
-            + nested(&scratch.term_fields)
-            + outer(&scratch.last_pos)
-            + outer(&scratch.query_slots)
-            + nested(&scratch.query_slots);
-        (scratch.score.len(), bytes)
+            + scratch.lookup.capacity() * size_of::<(String, u32)>();
+        (scratch.slots.len(), bytes)
     })
 }
 
@@ -641,9 +669,15 @@ pub(crate) fn scratch_footprint() -> (usize, usize) {
 struct FusedHits<'a> {
     /// (doc id, quality-multiplied score), sorted by score; ties keep the JS
     /// `Map` order (see `run_fused_query`).
-    hits: Vec<(ShortId, f64)>,
-    /// Per-doc matched derived-term ids, indexed by doc id.
-    terms: &'a [Vec<u32>],
+    /// Each with the index of the doc's row, so reading a hit's terms needs
+    /// no slot lookup (hits are in score order, slots in id order).
+    hits: Vec<(ShortId, f64, u32)>,
+    /// The touched docs' rows: matched derived-term ids and, if the pass
+    /// tracked them, match fields and query-term slots (which index
+    /// [`term_slot_table`]).
+    row_terms: &'a [Vec<u32>],
+    row_fields: &'a [Vec<(u32, u64)>],
+    row_query_slots: &'a [Vec<u32>],
     /// Interned derived terms.
     table: &'a [String],
     /// Array-index value per interned term (see `Scratch::table_index`).
@@ -651,12 +685,6 @@ struct FusedHits<'a> {
     /// Whether any interned term is array-index-like; when false every
     /// `term_ids` call is a plain borrow.
     has_index_terms: bool,
-    /// Per doc, parallel to `terms` (see `Scratch::term_fields`); empty
-    /// unless the pass tracked rows.
-    term_fields: &'a [Vec<(u32, u64)>],
-    /// Per doc, distinct query-term slots in first-match order; empty unless
-    /// the pass tracked rows. Slots index [`term_slot_table`].
-    query_slots: &'a [Vec<u32>],
     /// Interned derived term -> id in `table`.
     lookup: &'a FxHashMap<String, u32>,
 }
@@ -674,11 +702,23 @@ fn term_slot_table(specs: &[QuerySpec]) -> Vec<&str> {
 }
 
 impl FusedHits<'_> {
+    /// A hit's match fields, parallel to its terms (empty unless tracked).
+    fn row_fields(&self, row: u32) -> &[(u32, u64)] {
+        self.row_fields.get(row as usize).map_or(&[], Vec::as_slice)
+    }
+
+    /// A hit's query-term slots (empty unless tracked).
+    fn row_query_slots(&self, row: u32) -> &[u32] {
+        self.row_query_slots
+            .get(row as usize)
+            .map_or(&[], Vec::as_slice)
+    }
+
     /// `doc`'s matched term ids in JS `Object.keys(match)` order: array-index
     /// terms first in ascending numeric order, then the rest in first-match
     /// order. Borrows the scratch list unless a reorder is actually needed.
-    fn term_ids(&self, doc: ShortId) -> Cow<'_, [u32]> {
-        let ids = &self.terms[doc as usize];
+    fn term_ids(&self, row: u32) -> Cow<'_, [u32]> {
+        let ids = &self.row_terms[row as usize];
         if !self.has_index_terms
             || ids
                 .iter()
@@ -2429,7 +2469,7 @@ impl MiniSearch {
             .collect();
 
         let mut any_stored = false;
-        for (index, &(doc_id, score)) in fused.hits.iter().enumerate() {
+        for (index, &(doc_id, score, row_index)) in fused.hits.iter().enumerate() {
             if shape.identity {
                 if index > 0 {
                     transfer.ids.push(',');
@@ -2445,9 +2485,8 @@ impl MiniSearch {
             transfer.doc_ids.push(doc_id);
             transfer.scores.push(score);
 
-            let doc = doc_id as usize;
-            let first_match = &fused.terms[doc];
-            let order = fused.term_ids(doc_id);
+            let first_match = &fused.row_terms[row_index as usize];
+            let order = fused.term_ids(row_index);
             let reordered = matches!(order, Cow::Owned(_));
             for (k, &term_id) in order.iter().enumerate() {
                 transfer.term_ids.push(term_id);
@@ -2460,7 +2499,7 @@ impl MiniSearch {
                     } else {
                         k
                     };
-                    let mask = fused.term_fields[doc][position].1;
+                    let mask = fused.row_fields(row_index)[position].1;
                     // JS pushes a term's fields in `Object.keys(boosts)` order.
                     for field_boost in field_boosts {
                         if mask & (1u64 << field_boost.field_id) != 0 {
@@ -2472,7 +2511,7 @@ impl MiniSearch {
             }
             transfer.term_offsets.push(transfer.term_ids.len() as u32);
 
-            for &slot in &fused.query_slots[doc] {
+            for &slot in fused.row_query_slots(row_index) {
                 transfer.query_term_ids.push(slot_ids[slot as usize]);
             }
             transfer
@@ -2552,7 +2591,7 @@ impl MiniSearch {
             fused
                 .hits
                 .iter()
-                .map(|&(doc_id, score)| CompactSearchResult {
+                .map(|&(doc_id, score, row_index)| CompactSearchResult {
                     id: self
                         .document_ids
                         .get(&doc_id)
@@ -2560,7 +2599,7 @@ impl MiniSearch {
                         .unwrap_or(Value::Null),
                     score,
                     terms: fused
-                        .term_ids(doc_id)
+                        .term_ids(row_index)
                         .iter()
                         .map(|&id| fused.table[id as usize].clone())
                         .collect(),
@@ -2645,8 +2684,8 @@ impl MiniSearch {
             // order plus the stable sort below reproduce JS's tie order.
             let mut phrase_slots: FxHashMap<Cow<'_, [u32]>, usize> = FxHashMap::default();
             let mut grouped: Vec<(Cow<'_, [u32]>, f64, u32)> = Vec::new();
-            for &(doc_id, score) in &fused.hits {
-                let term_ids = fused.term_ids(doc_id);
+            for &(_, score, row_index) in &fused.hits {
+                let term_ids = fused.term_ids(row_index);
                 match phrase_slots.entry(term_ids) {
                     Entry::Occupied(slot) => {
                         let (_, total, count) = &mut grouped[*slot.get()];
@@ -2797,10 +2836,10 @@ impl MiniSearch {
             let mut term_ids = Vec::new();
             term_offsets.push(0);
 
-            for &(doc_id, score) in &fused.hits {
+            for &(doc_id, score, row_index) in &fused.hits {
                 doc_ids.push(doc_id);
                 scores.push(score);
-                term_ids.extend_from_slice(&fused.term_ids(doc_id));
+                term_ids.extend_from_slice(&fused.term_ids(row_index));
                 term_offsets.push(term_ids.len() as u32);
             }
 
@@ -2852,7 +2891,7 @@ impl MiniSearch {
             let mut terms = String::new();
             let mut scores = Vec::with_capacity(fused.hits.len());
 
-            for (index, &(doc_id, score)) in fused.hits.iter().enumerate() {
+            for (index, &(doc_id, score, row_index)) in fused.hits.iter().enumerate() {
                 if index > 0 {
                     terms.push('\n');
                 }
@@ -2866,7 +2905,7 @@ impl MiniSearch {
                         None => ids.push_str("null"),
                     }
                 }
-                for (term_index, &id) in fused.term_ids(doc_id).iter().enumerate() {
+                for (term_index, &id) in fused.term_ids(row_index).iter().enumerate() {
                     if term_index > 0 {
                         terms.push(' ');
                     }
@@ -2894,7 +2933,7 @@ impl MiniSearch {
             let mut scores = Vec::with_capacity(fused.hits.len());
             let mut terms = Vec::with_capacity(fused.hits.len());
 
-            for &(doc_id, score) in &fused.hits {
+            for &(doc_id, score, row_index) in &fused.hits {
                 ids.push(
                     self.document_ids
                         .get(&doc_id)
@@ -2904,7 +2943,7 @@ impl MiniSearch {
                 scores.push(score);
                 terms.push(
                     fused
-                        .term_ids(doc_id)
+                        .term_ids(row_index)
                         .iter()
                         .map(|&id| fused.table[id as usize].clone())
                         .collect(),
@@ -2993,26 +3032,29 @@ impl MiniSearch {
                 CombineWith::And if specs.len() > 1 => &scratch.spec_touched,
                 _ => &scratch.touched,
             };
-            let mut hits: Vec<(ShortId, f64)> = Vec::with_capacity(candidates.len());
+            let mut hits: Vec<(ShortId, f64, u32)> = Vec::with_capacity(candidates.len());
             for &doc_id in candidates {
                 let i = doc_id as usize;
                 let keep = match options.combine_with {
                     CombineWith::Or => true,
-                    CombineWith::And => scratch.spec_count[i] == spec_count,
-                    CombineWith::AndNot => scratch.first_spec[i] == 0 && scratch.spec_count[i] == 1,
+                    CombineWith::And => scratch.slots[i].spec_count == spec_count,
+                    CombineWith::AndNot => {
+                        scratch.slots[i].first_spec == 0 && scratch.slots[i].spec_count == 1
+                    }
                 };
                 if keep {
-                    let quality = scratch.term_count[i].max(1) as f64;
-                    hits.push((doc_id, scratch.score[i] * quality));
+                    let slot = &scratch.slots[i];
+                    let quality = slot.term_count.max(1) as f64;
+                    hits.push((doc_id, slot.score * quality, slot.row));
                 }
             }
 
             if let Some(filter) = &options.filter {
-                hits.retain(|(doc_id, _)| self.matches_filter(*doc_id, filter));
+                hits.retain(|(doc_id, _, _)| self.matches_filter(*doc_id, filter));
             }
 
             if sort {
-                hits.sort_by(|(_, left_score), (_, right_score)| {
+                hits.sort_by(|(_, left_score, _), (_, right_score, _)| {
                     right_score
                         .partial_cmp(left_score)
                         .unwrap_or(Ordering::Equal)
@@ -3025,20 +3067,12 @@ impl MiniSearch {
             phase_begin!(transfer, Transfer);
             let result = finish(FusedHits {
                 hits,
-                terms: &scratch.terms,
+                row_terms: &scratch.row_terms,
+                row_fields: &scratch.row_fields,
+                row_query_slots: &scratch.row_query_slots,
                 table: &scratch.table,
                 table_index: &scratch.table_index,
                 has_index_terms: scratch.table_index.iter().any(Option::is_some),
-                term_fields: if tracking.match_fields {
-                    &scratch.term_fields
-                } else {
-                    &[]
-                },
-                query_slots: if tracking.query_terms {
-                    &scratch.query_slots
-                } else {
-                    &[]
-                },
                 lookup: &scratch.lookup,
             });
             phase_end!(transfer);
@@ -3536,7 +3570,7 @@ impl MiniSearch {
                     term_weight * term_boost * field_boost.boost * doc_boost * raw_score;
 
                 let i = scratch.touch(doc_id, spec_index, term_slot);
-                scratch.spec_score[i] += weighted_score;
+                scratch.slots[i].spec_score += weighted_score;
                 scratch.record_term(i, term_id, spec_index, field_id);
             }
         }
