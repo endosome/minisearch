@@ -1,4 +1,4 @@
-# minisearch-wasm
+# @endosome/minisearch
 
 A Rust + WebAssembly full-text search engine with a compatibility facade for
 [MiniSearch](https://github.com/lucaong/minisearch) 7.2.0. Indexing, searching,
@@ -34,7 +34,7 @@ keeps working:
 // before
 import MiniSearch from "minisearch";
 // after
-import MiniSearch from "minisearch-wasm";
+import MiniSearch from "@endosome/minisearch";
 ```
 
 In a browser or module Worker, also call `await MiniSearch.init()` once at
@@ -131,7 +131,7 @@ in sync, and an index does not switch back automatically.
 ## API
 
 ```js
-import init, { MiniSearchWasm } from "minisearch-wasm";
+import init, { MiniSearchWasm } from "@endosome/minisearch";
 await init();
 
 // Build (or load a prebuilt index — far cheaper, see below).
@@ -461,7 +461,7 @@ Measurements of the 0.12.0 package against MiniSearch and 0.11.0 are in
 time the calls alone, which is why `searchJoined` reads about 8× there and
 about 5× in the paired runs.
 
-The [paired public-package report](https://github.com/epoyraz/minisearch-wasm/blob/main/differential/results/2026-09-18-public-vs-original.md)
+The [paired public-package report](https://github.com/endosome/minisearch/blob/main/differential/results/2026-09-18-public-vs-original.md)
 for 0.10.0 also measures the first query batch and that version's one-time
 transfer to JavaScript: full `search()` 1.42x faster, decoded `searchJoined`
 4.48x, decoded `searchRaw` 13.18x, and 1.28-1.59 seconds for the first callback
@@ -527,15 +527,15 @@ compatibility.
 ## Install
 
 ```sh
-npm install minisearch-wasm
+npm install @endosome/minisearch
 ```
 
 Node ESM and CommonJS initialize the packaged Wasm module synchronously:
 
 ```js
-import MiniSearch from "minisearch-wasm";
+import MiniSearch from "@endosome/minisearch";
 const index = new MiniSearch({ fields: ["text"] });
-// CommonJS: const MiniSearch = require("minisearch-wasm");
+// CommonJS: const MiniSearch = require("@endosome/minisearch");
 ```
 
 Browser ESM and module Workers can call `await init()` before constructing an
@@ -543,7 +543,7 @@ index to select Wasm. Without initialization the constructor works immediately
 in JavaScript mode; existing indexes keep their mode when initialization ends.
 
 ```js
-import MiniSearch, { init } from "minisearch-wasm";
+import MiniSearch, { init } from "@endosome/minisearch";
 await init();
 const index = new MiniSearch({ fields: ["text"] });
 ```
@@ -551,7 +551,7 @@ const index = new MiniSearch({ fields: ["text"] });
 The legacy `import init, { MiniSearchWasm }` / `await init()` syntax still works.
 Plain browser ESM bundles its compatibility dependency and needs no import map.
 The browser-global bundle exposes `MiniSearch` and `MiniSearch.init()`.
-`SearchableMap` is exported at `minisearch-wasm/SearchableMap` for both ESM and
+`SearchableMap` is exported at `@endosome/minisearch/SearchableMap` for both ESM and
 CommonJS. See [COMPATIBILITY.md](COMPATIBILITY.md) for direct asset imports and CSP.
 
 ### Bundlers
@@ -561,8 +561,8 @@ loads `minisearch_wasm_bg.wasm` from a URL next to the module. A bundler that
 does not copy that file has to be given it; pass the URL it produces to `init`:
 
 ```js
-import MiniSearch, { init } from "minisearch-wasm";
-import wasmUrl from "minisearch-wasm/minisearch_wasm_bg.wasm?url"; // Vite; webpack: new URL("…", import.meta.url)
+import MiniSearch, { init } from "@endosome/minisearch";
+import wasmUrl from "@endosome/minisearch/minisearch_wasm_bg.wasm?url"; // Vite; webpack: new URL("…", import.meta.url)
 await init(wasmUrl);
 ```
 

@@ -23,7 +23,9 @@ const glueDir = option("--glue", "target/wasm-glue");
 const pkgDir = option("--out", "pkg");
 const fail = message => { console.error(`finalize-pkg: ${message}`); process.exit(1); };
 
-const REPO = "https://github.com/epoyraz/minisearch-wasm";
+// The published package: its npm name and the repository it is built from.
+const PACKAGE_NAME = "@endosome/minisearch";
+const REPO = "https://github.com/endosome/minisearch";
 const manifest = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 const upstream = JSON.parse(readFileSync(resolve(root, "node_modules/minisearch/package.json"), "utf8"));
 const upstreamLicense = readFileSync(resolve(root, "node_modules/minisearch/LICENSE.txt"), "utf8");
@@ -64,7 +66,7 @@ const facadeTypes = readFileSync(resolve(root, "js/minisearch.d.ts"), "utf8").re
 write("minisearch_wasm.d.ts", facadeTypes);
 // CommonJS declarations must themselves be CommonJS under NodeNext resolution.
 // `export =` carries the constructor; a merged namespace carries every named
-// type, so `import type { SearchResult } from "minisearch-wasm"` works there too.
+// type, so `import type { SearchResult } from "@endosome/minisearch"` works there too.
 const esmTypes = name => `import("./${name}.js", { with: { "resolution-mode": "import" } })`;
 const exportedTypes = new Map();
 for (const [, names] of facadeTypes.matchAll(/^export type \{([^}]+)\}/gm)) for (const name of names.split(",")) exportedTypes.set(name.trim(), false);
@@ -104,7 +106,7 @@ import MiniSearch, { initSync } from "./minisearch_wasm.js";
 try {
   initSync({ module: readFileSync(new URL("./minisearch_wasm_bg.wasm", import.meta.url)) });
 } catch (error) {
-  console.warn(\`minisearch-wasm: minisearch_wasm_bg.wasm could not be loaded (\${error.message}); using the JavaScript engine. Ship the file next to the bundle, or call initSync({ module: bytes }) yourself.\`);
+  console.warn(\`@endosome/minisearch: minisearch_wasm_bg.wasm could not be loaded (\${error.message}); using the JavaScript engine. Ship the file next to the bundle, or call initSync({ module: bytes }) yourself.\`);
 }
 export * from "./minisearch_wasm.js";
 export default MiniSearch;
@@ -132,7 +134,7 @@ for (const name of ["global-entry.js", "global-url.js"]) rmSync(out(name));
 // this script owns the complete publish manifest instead.
 const entry = (types, file) => ({ types: `./${types}`, default: `./${file}` });
 write("package.json", JSON.stringify({
-  name: "minisearch-wasm",
+  name: PACKAGE_NAME,
   version: manifest.version,
   description: "WebAssembly full-text search with a MiniSearch-compatible JavaScript fallback for callbacks and value semantics.",
   license: "MIT",
@@ -140,6 +142,8 @@ write("package.json", JSON.stringify({
   repository: { type: "git", url: `git+${REPO}.git` },
   homepage: `${REPO}#readme`,
   bugs: { url: `${REPO}/issues` },
+  // A scoped package is private on npm unless published as public.
+  publishConfig: { access: "public" },
   keywords: ["search", "full-text-search", "fulltext", "wasm", "webassembly", "minisearch", "bm25", "fuzzy-search", "prefix-search"],
   type: "module",
   engines: manifest.engines,
@@ -173,4 +177,4 @@ write("package.json", JSON.stringify({
     "README.md", "COMPATIBILITY.md", "LICENSE.txt", "LICENSE.minisearch.txt"],
 }, null, 2) + "\n");
 
-console.log(`finalize-pkg: assembled ${pkgDir} (minisearch-wasm ${manifest.version}) from ${glueDir}`);
+console.log(`finalize-pkg: assembled ${pkgDir} (${PACKAGE_NAME} ${manifest.version}) from ${glueDir}`);

@@ -62,7 +62,7 @@ computes the inverse document frequency with the logarithm algorithm V8 uses
 (*since 0.11.0*; up to 0.10.0 about 4% of scores on small indexes differed in the
 last bit).
 
-The public package has a [paired performance report](https://github.com/epoyraz/minisearch-wasm/blob/main/differential/results/2026-09-18-public-vs-original.md)
+The public package has a [paired performance report](https://github.com/endosome/minisearch/blob/main/differential/results/2026-09-18-public-vs-original.md)
 for 0.10.0 that measures transfer costs separately from Wasm search throughput.
 Its Node and synthetic-corpus results should not be assumed to hold for other
 workloads; reproduce it with `npm run bench:public`.
@@ -93,7 +93,7 @@ and reads document properties within those chunks.
 
 `MiniSearch<T>`, `MiniSearchWasm<T>`, `Options<T>` and the original public option,
 query and result types are exported, for ESM and (through a merged namespace,
-`import type { SearchResult } from "minisearch-wasm"`) for CommonJS. MiniSearch's
+`import type { SearchResult } from "@endosome/minisearch"`) for CommonJS. MiniSearch's
 declarations ship inside the package; it is not a dependency. Case variants such
 as `And` are accepted. Declarations compile with `lib: ["es2022"]`: neither the
 DOM nor an ESNext disposable library is required. Generated core glue is
@@ -105,14 +105,14 @@ Undocumented upstream internals such as `loadJS` are not facade contracts.
 Node initializes Wasm on import or require:
 
 ```js
-import MiniSearch, { MiniSearchWasm } from 'minisearch-wasm';
-import SearchableMap from 'minisearch-wasm/SearchableMap';
+import MiniSearch, { MiniSearchWasm } from '@endosome/minisearch';
+import SearchableMap from '@endosome/minisearch/SearchableMap';
 const index = new MiniSearch({ fields: ['text'] });
 ```
 
 ```js
-const MiniSearch = require('minisearch-wasm');
-const SearchableMap = require('minisearch-wasm/SearchableMap');
+const MiniSearch = require('@endosome/minisearch');
+const SearchableMap = require('@endosome/minisearch/SearchableMap');
 ```
 
 In a browser or module Worker, initialize before constructing a Wasm index:

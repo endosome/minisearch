@@ -38,8 +38,8 @@ const packed = JSON.parse(run([npm, 'pack', join(root, 'pkg'), '--json', '--pack
 run([npm, 'install', '--ignore-scripts', '--no-audit', '--no-fund', join(fixture, packed[0].filename)]);
 writeFileSync(join(fixture, 'esm.mjs'), `
 import assert from 'node:assert/strict';
-import MiniSearch, { MiniSearchWasm, init } from 'minisearch-wasm';
-import SearchableMap from 'minisearch-wasm/SearchableMap';
+import MiniSearch, { MiniSearchWasm, init } from '@endosome/minisearch';
+import SearchableMap from '@endosome/minisearch/SearchableMap';
 const index = new MiniSearch({fields:['text']});
 assert.equal(index.executionMode, 'wasm');
 index.add({id:1,text:'apple'});
@@ -52,8 +52,8 @@ await init(); await MiniSearch(); index.free();
 `);
 writeFileSync(join(fixture, 'cjs.cjs'), `
 const assert=require('node:assert/strict');
-const MiniSearch=require('minisearch-wasm');
-const SearchableMap=require('minisearch-wasm/SearchableMap');
+const MiniSearch=require('@endosome/minisearch');
+const SearchableMap=require('@endosome/minisearch/SearchableMap');
 const index=new MiniSearch({fields:['text']});
 assert.equal(index.executionMode,'wasm');
 index.add({id:1,text:'apple'}); assert.equal(index.search('apple')[0].id,1);
@@ -62,8 +62,8 @@ assert.equal(SearchableMap.from([['apple',1]]).get('apple'),1); index.free();
 run(['--disallow-code-generation-from-strings', 'esm.mjs']);
 run(['--disallow-code-generation-from-strings', 'cjs.cjs']);
 writeFileSync(join(fixture, 'esm.mts'), `
-import MiniSearch, {MiniSearchWasm, type Options, type BM25Params, type CombinationOperator} from 'minisearch-wasm';
-import SearchableMap from 'minisearch-wasm/SearchableMap';
+import MiniSearch, {MiniSearchWasm, type Options, type BM25Params, type CombinationOperator} from '@endosome/minisearch';
+import SearchableMap from '@endosome/minisearch/SearchableMap';
 const options:Options<{id:number;text:string}>={fields:['text']};
 const index=new MiniSearch<{id:number;text:string}>(options);
 const annotated:MiniSearch<{id:number;text:string}>=index;
@@ -76,9 +76,9 @@ const map=new SearchableMap<number>();map.set('a',1);
 index.add({id:'x',text:'a'});
 `);
 writeFileSync(join(fixture, 'cjs.cts'), `
-import MiniSearch = require('minisearch-wasm');
-import SearchableMap = require('minisearch-wasm/SearchableMap');
-import type { SearchResult, Options, Query, JoinedResults } from 'minisearch-wasm';
+import MiniSearch = require('@endosome/minisearch');
+import SearchableMap = require('@endosome/minisearch/SearchableMap');
+import type { SearchResult, Options, Query, JoinedResults } from '@endosome/minisearch';
 const settings:Options<{id:number;text:string}>={fields:['text']};
 const rows:SearchResult[]=new MiniSearch(settings).search('a' as Query);
 const joined:JoinedResults|MiniSearch.RawResults=new MiniSearch(settings).searchJoined('a');
@@ -91,7 +91,7 @@ const map=new SearchableMap<number>();map.set('a',1);
 // types stand on their own, MiniSearch's included.
 run([join(root, 'node_modules/typescript/bin/tsc'), '--ignoreConfig', '--noEmit', '--strict', '--target', 'es2022', '--module', 'nodenext', '--lib', 'es2022', '--skipLibCheck', 'false', 'esm.mts', 'cjs.cts']);
 
-const packageDir = join(fixture, 'node_modules/minisearch-wasm');
+const packageDir = join(fixture, 'node_modules/@endosome/minisearch');
 const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
 assert.equal(readFileSync(join(packageDir, 'README.md'), 'utf8'), readFileSync(join(root, 'README.md'), 'utf8'), 'the package ships the current README');
 assert.ok(readFileSync(join(packageDir, 'README.md'), 'utf8').includes(version), `the README mentions version ${version}`);
@@ -118,7 +118,7 @@ assert.equal(vm.runInContext(`(() => {
 })()`, context), true);
 // A bundler that leaves the .wasm file behind must not break the import: the
 // Node entry then warns and runs on the JavaScript engine.
-writeFileSync(join(fixture, 'bundled.mjs'), `import MiniSearch from 'minisearch-wasm';
+writeFileSync(join(fixture, 'bundled.mjs'), `import MiniSearch from '@endosome/minisearch';
 const index = new MiniSearch({ fields: ['text'] }); index.add({ id: 1, text: 'apple' });
 console.log(index.executionMode, index.search('apple')[0].id);
 `);
@@ -126,7 +126,7 @@ await build({ absWorkingDir: fixture, entryPoints: ['bundled.mjs'], bundle: true
 const bundled = spawnSync(process.execPath, ['out/bundled.mjs'], { cwd: fixture, encoding: 'utf8' });
 assert.equal(bundled.status, 0, bundled.stderr); assert.match(bundled.stdout, /^javascript 1/); assert.match(bundled.stderr, /could not be loaded/);
 // require() from browser code resolves to the fetch-based entry, never node:fs.
-writeFileSync(join(fixture, 'browser.cjs'), "const MiniSearch = require('minisearch-wasm'); module.exports = new MiniSearch({ fields: ['text'] });\n");
+writeFileSync(join(fixture, 'browser.cjs'), "const MiniSearch = require('@endosome/minisearch'); module.exports = new MiniSearch({ fields: ['text'] });\n");
 await build({ absWorkingDir: fixture, entryPoints: ['browser.cjs'], bundle: true, platform: 'browser', outfile: 'out/browser.js', logLevel: 'error' });
 assert.doesNotMatch(readFileSync(join(fixture, 'out/browser.js'), 'utf8'), /node:fs/);
 rmSync(fixture, { recursive: true });
