@@ -2203,7 +2203,11 @@ impl MiniSearch {
         stat!(RowsMaterialized, ranked.len());
 
         let mut transfer = CompatTransfer {
-            ids: String::from("["),
+            ids: if shape.identity {
+                String::from("[")
+            } else {
+                String::new()
+            },
             doc_ids: Vec::with_capacity(ranked.len()),
             scores: Vec::with_capacity(ranked.len()),
             table: String::new(),
@@ -2213,8 +2217,18 @@ impl MiniSearch {
             query_term_offsets: vec![0],
             field_ids: Vec::new(),
             field_offsets: vec![0],
-            field_names: self.options.fields.join("\n"),
-            stored: String::from("["),
+            // The ids, field names and stored fields go only to the engine's
+            // own rows (identity); the facade keeps them itself.
+            field_names: if shape.identity {
+                self.options.fields.join("\n")
+            } else {
+                String::new()
+            },
+            stored: if shape.identity {
+                String::from("[")
+            } else {
+                String::new()
+            },
         };
         let mut interned: FxHashMap<&str, u32> = FxHashMap::default();
         let mut table: Vec<&str> = Vec::new();
@@ -2255,20 +2269,24 @@ impl MiniSearch {
             transfer
                 .query_term_offsets
                 .push(transfer.query_term_ids.len() as u32);
-            match self.stored_fields.get(doc_id).filter(|_| shape.identity) {
-                Some(fields) if !fields.is_empty() => {
-                    any_stored = true;
-                    transfer
-                        .stored
-                        .push_str(&serde_json::to_string(fields).unwrap_or_else(|_| "null".into()));
+            if shape.identity {
+                match self.stored_fields.get(doc_id) {
+                    Some(fields) if !fields.is_empty() => {
+                        any_stored = true;
+                        transfer.stored.push_str(
+                            &serde_json::to_string(fields).unwrap_or_else(|_| "null".into()),
+                        );
+                    }
+                    _ => transfer.stored.push_str("null"),
                 }
-                _ => transfer.stored.push_str("null"),
             }
         }
-        transfer.ids.push(']');
-        transfer.stored.push(']');
-        if !any_stored || !shape.identity {
-            transfer.stored.clear();
+        if shape.identity {
+            transfer.ids.push(']');
+            transfer.stored.push(']');
+            if !any_stored {
+                transfer.stored.clear();
+            }
         }
         transfer.table = serde_json::to_string(&table).unwrap_or_else(|_| "[]".into());
         transfer
@@ -2311,7 +2329,11 @@ impl MiniSearch {
         let hit_count = fused.hits.len();
         stat!(RowsMaterialized, hit_count);
         let mut transfer = CompatTransfer {
-            ids: String::from("["),
+            ids: if shape.identity {
+                String::from("[")
+            } else {
+                String::new()
+            },
             doc_ids: Vec::with_capacity(hit_count),
             scores: Vec::with_capacity(hit_count),
             table: String::new(),
@@ -2321,8 +2343,18 @@ impl MiniSearch {
             query_term_offsets: Vec::with_capacity(hit_count + 1),
             field_ids: Vec::new(),
             field_offsets: vec![0],
-            field_names: self.options.fields.join("\n"),
-            stored: String::from("["),
+            // The ids, field names and stored fields go only to the engine's
+            // own rows (identity); the facade keeps them itself.
+            field_names: if shape.identity {
+                self.options.fields.join("\n")
+            } else {
+                String::new()
+            },
+            stored: if shape.identity {
+                String::from("[")
+            } else {
+                String::new()
+            },
         };
         transfer.term_offsets.push(0);
         transfer.query_term_offsets.push(0);
@@ -2392,20 +2424,24 @@ impl MiniSearch {
                 .query_term_offsets
                 .push(transfer.query_term_ids.len() as u32);
 
-            match self.stored_fields.get(&doc_id).filter(|_| shape.identity) {
-                Some(fields) if !fields.is_empty() => {
-                    any_stored = true;
-                    transfer
-                        .stored
-                        .push_str(&serde_json::to_string(fields).unwrap_or_else(|_| "null".into()));
+            if shape.identity {
+                match self.stored_fields.get(&doc_id) {
+                    Some(fields) if !fields.is_empty() => {
+                        any_stored = true;
+                        transfer.stored.push_str(
+                            &serde_json::to_string(fields).unwrap_or_else(|_| "null".into()),
+                        );
+                    }
+                    _ => transfer.stored.push_str("null"),
                 }
-                _ => transfer.stored.push_str("null"),
             }
         }
-        transfer.ids.push(']');
-        transfer.stored.push(']');
-        if !any_stored || !shape.identity {
-            transfer.stored.clear();
+        if shape.identity {
+            transfer.ids.push(']');
+            transfer.stored.push(']');
+            if !any_stored {
+                transfer.stored.clear();
+            }
         }
         transfer.table = serde_json::to_string(&table).unwrap_or_else(|_| "[]".into());
         transfer
