@@ -89,6 +89,13 @@ against 0.12.0 on the same machine.
 | Vacuum after discarding 25% | 1.0× (64 ms) | 17× | |
 | Snapshot size, binary vs JSON | 1.0× (8,101 KB) | 7.5× smaller | 1.65× smaller |
 
+*Unreleased (performance work since 0.12.0), on Linux (Intel Xeon E5-2640,
+Node 24):* `search()` with full result objects is 4.1× MiniSearch (2.8× for
+0.12.0 on the same machine), with a `filter` callback 3.1×, with
+`boostDocument` 2.8×, on a dirty index 3.7×, and `loadJSON` 2.2×. Indexing
+1M documents is linear: 38 s, where 0.12.0 took 200-357 s. See the
+[final report](differential/results/2026-10-15-final.md).
+
 So swapping the import alone makes `search()` about 2× and `autoSuggest`
 about 7× faster, custom tokenizers and document boosts included. The larger
 gains need code changes: `searchJoined` and `searchRaw` return compact result
