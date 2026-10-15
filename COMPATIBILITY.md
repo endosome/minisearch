@@ -176,7 +176,7 @@ full results when custom callbacks emit delimiter-containing terms, or IDs
 depend on reference identity or cannot survive JSON. Full results preserve
 those JavaScript values.
 
-*Since the next release*, three extensions are defined by `search()` with the
+*Since 0.13.0*, three extensions are defined by `search()` with the
 same arguments and return MiniSearch's own values: `searchTopK(query, { limit,
 ...options })` is `search(query, options).slice(0, limit)` (with `limit` a
 non-negative integer); `searchScores(query, options)` is

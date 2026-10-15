@@ -10,9 +10,10 @@ A bundled, pinned MiniSearch implementation takes over for the few inputs the
 engine cannot represent. Check `index.executionMode` to see which engine owns
 the index.
 
-Version **0.12.0** keeps custom tokenizers, term processors, document boosts
-and JavaScript values in Wasm, and makes `search()`, `addAll` and `loadJSON`
-much faster. See [Changes in 0.12.0](#changes-in-0120) and
+Version **0.13.0** makes `search()` about 4× faster than MiniSearch (0.12.0:
+2.8×), keeps indexing linear at scale, and adds `searchTopK`, `searchScores`
+and `countMatches`. It is published as `@endosome/minisearch` (before:
+`minisearch-wasm`). See [Changes in 0.13.0](#changes-in-0130) and
 [CHANGELOG.md](CHANGELOG.md).
 See [COMPATIBILITY.md](COMPATIBILITY.md) for the API, import formats, engine
 selection and persistence limitations.
@@ -289,6 +290,26 @@ const total = mini.countMatches("software engineer", { combineWith: "OR" });
   a subclass. The results are the same either way.
 - On an index with discarded documents, each call cleans up what it reaches,
   as one `search()` call would.
+
+## Changes in 0.13.0
+
+- **Faster `search()`.** Full result objects: 4.1× MiniSearch, against 2.8×
+  for 0.12.0 on the same machine. With a `filter` callback 3.1× (was 2.4×),
+  with `boostDocument` 2.8× (2.3×), on an index with discarded documents 3.7×
+  (3.0×). Each call runs the engine once, tracks only the result data it
+  returns, and builds rows into preallocated arrays.
+- **Linear indexing at scale.** 1M documents index in 38 s (0.12.0: 200–357 s);
+  the first searches on an index with discarded documents are about 8× faster.
+- **Less memory, faster maintenance.** 14% less live memory for a
+  300k-document index;
+  compaction 0.6× and vacuum 0.8× of 0.12.0's time; `termCount` is O(1).
+- **New:** `searchTopK`, `searchScores` and `countMatches` (see
+  [Top results, scores and counts](#top-results-scores-and-counts)).
+- **Fixed toward MiniSearch:** a stored-field getter is read once per result,
+  and `autoSuggest` follows a stored `score` field.
+- **Renamed package:** install `@endosome/minisearch`. Snapshots and the
+  snapshot format names are unchanged, so indexes saved by 0.12.0 load as
+  they are.
 
 ## Changes in 0.12.0
 

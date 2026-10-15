@@ -1,59 +1,56 @@
-# minisearch-wasm 0.12.0
+# @endosome/minisearch 0.13.0
 
-This release keeps indexes on the Rust/Wasm engine in almost every case and
-makes the drop-in paths fast. The compatibility target is MiniSearch 7.2.0;
-`index.executionMode` reports the engine in use.
+This release makes the drop-in `search()` about 4× faster than MiniSearch
+7.2.0, keeps indexing linear on large corpora, and adds three opt-in methods
+for when you need only part of a search's result. Results stay MiniSearch's
+down to the last bit of the score, and snapshots saved by 0.12.0 load
+unchanged.
+
+The package is now published as **`@endosome/minisearch`** (previously
+`minisearch-wasm`):
+
+```sh
+npm install @endosome/minisearch
+```
+
+```js
+import MiniSearch from "@endosome/minisearch";
+```
 
 ## Changes
 
-- Document ids and stored fields live on the JavaScript side, kept as
-  MiniSearch keeps them: ids of any type, stored fields as live objects. Object
-  ids, Dates and other JavaScript values stay in Wasm, and `getStoredFields`
-  returns the live object, edits included.
-- `tokenize` and `processTerm` callbacks run on the JavaScript side exactly as
-  MiniSearch calls them, and the engine indexes and searches their terms.
-  `boostDocument` runs in Wasm: the engine calls it back while it scores, in
-  MiniSearch's order. Custom tokenizers, stop words, stemmers and document
-  boosts no longer move an index to the JavaScript engine.
-- `search()` builds its results in one JavaScript loop from short ids: about
-  2.4× faster than 0.11.0 (2.2× MiniSearch). `addAll` batches documents and
-  indexes with fewer allocations (about 2× faster, 3.3× MiniSearch), and
-  `loadJSON` reads postings straight into the engine (about 2.5× faster, 1.8×
-  MiniSearch's loader). `loadJSONAsync` yields where MiniSearch's does.
-- Binary snapshots (version 5) are about 40% smaller; ids and stored fields
-  travel as JSON next to the engine snapshot.
-- `toJSON()` matches MiniSearch's byte for byte in ordinary use: key order,
-  field averages, short ids (renumbered only after heavy churn), and
-  `removeAll()` keeps the dirt count.
-- The published Wasm module leaves out engine bindings the facade no longer
-  uses.
+- **Faster `search()`.** On the benchmark corpus (20,000 documents, Linux,
+  Node 24), full result objects are 4.1× MiniSearch's speed (0.12.0: 2.8× on
+  the same machine). With a `filter` callback 3.1× (was 2.4×), with
+  `boostDocument` 2.8× (was 2.3×), on an index with discarded documents 3.7×
+  (was 3.0×). All 934,016 result rows of the benchmark were checked identical to
+  MiniSearch's.
+- **Linear indexing at scale.** Indexing 1M documents takes 38 s (0.12.0:
+  200–357 s). Every small step of Wasm memory growth made Node run a full
+  garbage collection; memory now grows in larger steps. The first searches on
+  an index with discarded documents are about 8× faster for the same reason.
+- **New opt-in methods**, each defined by `search()` with the same arguments:
+  - `searchTopK(query, { limit, ...options })` is `search(...).slice(0, limit)`;
+  - `searchScores(query, options)` gives `{ id, score }` pairs in `search()` order;
+  - `countMatches(query, options)` is `search(...).length`.
 
-## Compatibility and migration
+  They take 0.34–0.45× the time of the `search()` expression, and fall back
+  to `search()` itself where callbacks or stored `id`/`score` fields shape the
+  rows. See "Top results, scores and counts" in the README.
+- **Less memory, faster maintenance.** 14% less live memory for a
+  300k-document index. Compaction takes 0.6× and vacuum 0.8× of 0.12.0's time,
+  and `termCount` is O(1).
+- **Fixed toward MiniSearch:** a stored-field getter is read once per result,
+  not twice; `autoSuggest()` follows a stored `score` field, as MiniSearch
+  does.
 
-Imports, initialization and the MiniSearch API are unchanged. MiniSearch JSON
-(versions 1 and 2) and native snapshots from 0.9.0 to 0.11.0 still load; new
-snapshots cannot be read by 0.11.0 or earlier. An index built with `tokenize`
-or `processTerm` callbacks needs them again when its snapshot is loaded, and
-says so otherwise.
+The full list is in [CHANGELOG.md](https://github.com/endosome/minisearch/blob/main/CHANGELOG.md).
+The measurements, and the experiments that were rejected, are in the
+[final report](https://github.com/endosome/minisearch/blob/main/differential/results/2026-10-15-final.md)
+and the decision records under `docs/adr/`.
 
-What still selects the JavaScript engine: a query-tree node with a
-`boostDocument` of its own, text or terms the engine cannot hold (not strings,
-lone surrogates), `fields` that is not an array or repeats a name, and
-`Infinity` in search options. Inside `boostDocument` the index can be read
-(`has`, `getStoredFields`, counts) but not searched or changed.
+## Upgrading from 0.12.0
 
-Read the [compatibility guide](https://github.com/epoyraz/minisearch-wasm/blob/v0.12.0/COMPATIBILITY.md)
-for the details, and the [benchmark report](https://github.com/epoyraz/minisearch-wasm/blob/v0.12.0/differential/results/2026-09-27-0.12.0-vs-original.md)
-for the measurements.
-
-## Validation
-
-The release gate includes formatting, strict Clippy for both builds, native and
-release-mode snapshot tests, differential comparisons with MiniSearch, the
-engine suites (built with `core-api`), the facade suites (callback call
-sequences, `boostDocument` calls on clean and dirty indexes, the serialized
-index byte for byte after a random mutation history), TypeScript,
-packed-package checks, MiniSearch's own test suite, Unicode tables and
-package-size budgets.
-
-Install with `npm install minisearch-wasm@0.12.0`.
+Change the package name in your install command and imports. Nothing else
+changes: the API, results, snapshot formats and the TypeScript types are
+compatible.

@@ -1,18 +1,33 @@
 # Changelog
 
-Notable changes to `minisearch-wasm`. Versions before 0.7.0 are summarized in
-`PORTING.md`. Release notes of the latest published version are in
-`RELEASE_NOTES.md`.
+Notable changes to `@endosome/minisearch`, published as `minisearch-wasm`
+before 0.13.0. Versions before 0.7.0 are summarized in `PORTING.md`. Release
+notes of the latest published version are in `RELEASE_NOTES.md`.
 
-## Unreleased
+## 0.13.0 - 2026-10-15
+
+`search()` with full result objects is 4.1x MiniSearch 7.2.0 (0.12.0: 2.8x on
+the same machine), indexing is linear at scale (1M documents: 38 s instead of
+200-357 s), and three opt-in methods return part of `search()`'s result in
+about 0.4x its time. Scores stay identical to MiniSearch's, and snapshots from
+0.12.0 load unchanged.
+
+### Changed
+
+- The package is published as `@endosome/minisearch` (previously
+  `minisearch-wasm`); update the install command and imports. Snapshot format
+  identifiers (`minisearch-wasm/identity`, `minisearch-wasm/compat`) and the
+  wildcard symbol key are unchanged, so saved indexes and existing code keep
+  working.
 
 ### Added
 
 - `searchTopK(query, { limit, ...options })`, `searchScores(query, options)`
   and `countMatches(query, options)`: `search()`'s first `limit` rows, its
   `{ id, score }` pairs and its length, building and transferring only that
-  (0.35-0.45x the time of the `search()` expression on the bench corpus). See
-  COMPATIBILITY.md for when they fall back to `search()` itself.
+  (0.34-0.45x the time of the `search()` expression on the bench corpus). See
+  the README section "Top results, scores and counts" and COMPATIBILITY.md for
+  when they fall back to `search()` itself.
 
 ### Fixed
 

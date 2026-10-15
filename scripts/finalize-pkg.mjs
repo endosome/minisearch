@@ -138,7 +138,7 @@ write("package.json", JSON.stringify({
   version: manifest.version,
   description: "WebAssembly full-text search with a MiniSearch-compatible JavaScript fallback for callbacks and value semantics.",
   license: "MIT",
-  author: "Enes Poyraz",
+  author: "endosome",
   repository: { type: "git", url: `git+${REPO}.git` },
   homepage: `${REPO}#readme`,
   bugs: { url: `${REPO}/issues` },
