@@ -42,6 +42,15 @@ What remains is mostly scoring: about 100 ms of engine time per batch. Existing 
 
 The Wasm binary grows by 22 KB (842,678 → 864,912 bytes), within the size budget. The top-K selection runs on one `(score, position)` array for both hit types; a first version generic over the hit type cost 36 KB. A second, restricted posting pass to rebuild match data for K winners only (a spec option) is not needed: the engine already tracks rows during scoring, and JS row building, the cost the spec targets, now covers K rows.
 
-## WP-14: restricted specialization
+## WP-14: restricted specialization: not implemented, by measurement
 
-Decided after WP-13, measured against its numbers; see the section below when added.
+The spec allows each WP-14 path only where it saves measurable work without skipping observable side effects. Measured opportunity on the target workload (the bench corpus's 39 queries, AND with prefix and fuzzy):
+
+- **AND short-circuit on a spec without matches.** 25 queries are single-term and 14 are multi-term. None of the 14 has a term without matches, so the short-circuit would never fire. It would also be allowed only on clean indexes: on a dirty index MiniSearch's search cleans up every list it reaches, which later scores reflect (the opt-in API test depends on that behavior).
+- **Candidate intersection, smallest list first.** The fused path already keeps a document only if every spec touched it, iterating the last spec's touched documents. A merge would save scoring of rejected candidates, but for these queries most candidates of the rarest term pass. Unmeasured, because no target query is selective enough to justify a second scoring order that has to reproduce the same floating-point sums.
+- **AND_NOT as membership.** Excluded clauses still accumulate BM25 terms that are never read. That arithmetic is a small share of the posting visit, and ADR 0002 showed a per-posting branch is invisible. No target workload uses AND_NOT.
+- **Single exact term without generic setup.** Planning is 0.19–0.28 ms per 39 queries (WP-00 stats profile), 0.15% of engine time. The fixed cost of a short query is in the facade, not the engine's setup.
+- **Query trees** take the map path and are not in the target workload. They were measured as a class in WP-00 (`execute_query_tree`); fusing simple trees stays open until a workload uses them.
+- **WAND / MaxScore** remain P3, as the spec says: they need a heavily used top-K API (now available as `searchTopK`) and proven score upper bounds across boosts and callbacks.
+
+Revisit with a workload of selective multi-term AND queries, AND_NOT-heavy filtering, or query trees.
