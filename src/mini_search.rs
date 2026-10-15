@@ -1352,10 +1352,22 @@ struct QuerySpec {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct FieldBoost {
+struct FieldBoost<'a> {
     field_id: FieldId,
-    field_name: String,
+    field_name: Cow<'a, str>,
     boost: f64,
+}
+
+impl FieldBoost<'_> {
+    /// The same boost with its own copy of the field name, for code that
+    /// mutates the index while it holds the boosts.
+    fn into_owned(self) -> FieldBoost<'static> {
+        FieldBoost {
+            field_id: self.field_id,
+            field_name: Cow::Owned(self.field_name.into_owned()),
+            boost: self.boost,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -2311,7 +2323,7 @@ impl MiniSearch {
         let options = apply_partial_options(&self.options.search_options, per_call);
         let specs = self.query_specs(text, &options);
         let field_boosts = self.field_boosts(&options);
-        self.run_fused_query_with(&specs, &options, true, shape.sort, |fused| {
+        self.run_fused_query_with(&specs, &options, &field_boosts, true, shape.sort, |fused| {
             self.transfer_from_fused(&fused, &specs, &field_boosts, shape)
         })
     }
@@ -2320,7 +2332,7 @@ impl MiniSearch {
         &self,
         fused: &FusedHits<'_>,
         specs: &[QuerySpec],
-        field_boosts: &[FieldBoost],
+        field_boosts: &[FieldBoost<'_>],
         shape: RowShape,
     ) -> CompatTransfer {
         let include_match = shape.include_match;
@@ -2523,10 +2535,11 @@ impl MiniSearch {
     /// Search runs entirely against the index's configured search options;
     /// `or_mode` is the only per-query override (AND default -> OR).
     pub fn search_packed_default(&self, query: &str, or_mode: bool) -> PackedSearchResults {
-        let mut options = self.options.search_options.clone();
-        if or_mode {
-            options.combine_with = CombineWith::Or;
+        if !or_mode {
+            return self.run_search_packed(query, &self.options.search_options);
         }
+        let mut options = self.options.search_options.clone();
+        options.combine_with = CombineWith::Or;
         self.run_search_packed(query, &options)
     }
 
@@ -2705,10 +2718,11 @@ impl MiniSearch {
     /// clones and per-(doc, term) `String`s a `PackedSearchResults` would
     /// allocate just to be concatenated and thrown away at the boundary.
     pub fn search_joined_default(&self, query: &str, or_mode: bool) -> JoinedSearchResults {
-        let mut options = self.options.search_options.clone();
-        if or_mode {
-            options.combine_with = CombineWith::Or;
+        if !or_mode {
+            return self.search_joined_with(query, &self.options.search_options);
         }
+        let mut options = self.options.search_options.clone();
+        options.combine_with = CombineWith::Or;
         self.search_joined_with(query, &options)
     }
 
@@ -2872,7 +2886,8 @@ impl MiniSearch {
         options: &SearchOptions,
         finish: impl FnOnce(FusedHits<'_>) -> R,
     ) -> R {
-        self.run_fused_query_with(specs, options, false, true, finish)
+        let field_boosts = self.field_boosts(options);
+        self.run_fused_query_with(specs, options, &field_boosts, false, true, finish)
     }
 
     /// [`Self::run_fused_query`], optionally recording what full rows need
@@ -2882,12 +2897,11 @@ impl MiniSearch {
         &self,
         specs: &[QuerySpec],
         options: &SearchOptions,
+        field_boosts: &[FieldBoost<'_>],
         track_rows: bool,
         sort: bool,
         finish: impl FnOnce(FusedHits<'_>) -> R,
     ) -> R {
-        let field_boosts = self.field_boosts(options);
-
         SCRATCH.with(|cell| {
             // Taken out for the query, not borrowed: should the query abort
             // (on wasm32 a panic does not unwind), the next one finds an empty
@@ -2910,7 +2924,7 @@ impl MiniSearch {
                     spec_index as u32,
                     term_slot,
                     options,
-                    &field_boosts,
+                    field_boosts,
                 );
                 scratch.flush_spec();
             }
@@ -3203,7 +3217,7 @@ impl MiniSearch {
         spec_index: u32,
         term_slot: u32,
         options: &SearchOptions,
-        field_boosts: &[FieldBoost],
+        field_boosts: &[FieldBoost<'_>],
     ) {
         if let Some(data) = self.index.get(&query.term) {
             let term_id = scratch.intern(&query.term);
@@ -3292,7 +3306,7 @@ impl MiniSearch {
         term_weight: f64,
         term_boost: f64,
         field_term_data: &FieldTermData,
-        field_boosts: &[FieldBoost],
+        field_boosts: &[FieldBoost<'_>],
         bm25_params: Bm25Params,
         results: &mut RawResult,
     ) {
@@ -3395,7 +3409,7 @@ impl MiniSearch {
         term_weight: f64,
         term_boost: f64,
         field_term_data: &FieldTermData,
-        field_boosts: &[FieldBoost],
+        field_boosts: &[FieldBoost<'_>],
         bm25_params: Bm25Params,
     ) {
         // A clean index (no discarded docs) has no dead postings, so the
@@ -3558,7 +3572,7 @@ impl MiniSearch {
         expansions
     }
 
-    fn field_boosts(&self, options: &SearchOptions) -> Vec<FieldBoost> {
+    fn field_boosts<'a>(&'a self, options: &'a SearchOptions) -> Vec<FieldBoost<'a>> {
         let fields = options.fields.as_ref().unwrap_or(&self.options.fields);
         // MiniSearch reduces the fields to an object, `{ [field]: boost }`, and
         // scores its keys: each field once, array-index-like names first.
@@ -3574,7 +3588,7 @@ impl MiniSearch {
             .filter_map(|field| {
                 self.field_ids.get(field).map(|field_id| FieldBoost {
                     field_id: *field_id,
-                    field_name: field.clone(),
+                    field_name: Cow::Borrowed(field.as_str()),
                     // JS `boost[field] || 1`: a zero (or NaN) boost means none.
                     boost: options
                         .boost

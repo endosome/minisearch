@@ -326,7 +326,12 @@ impl MiniSearch {
     /// Only terms are kept: a term removed earlier in the same query is looked
     /// up again at its turn and found gone, as JS finds its posting map empty.
     fn execute_query_spec_lazy(&mut self, query: &QuerySpec, options: &SearchOptions) -> RawResult {
-        let field_boosts = self.field_boosts(options);
+        // Owned names: the index is mutated while the boosts are held.
+        let field_boosts: Vec<FieldBoost<'static>> = self
+            .field_boosts(options)
+            .into_iter()
+            .map(FieldBoost::into_owned)
+            .collect();
         let mut results = RawResult::default();
 
         self.term_results_lazy(
@@ -414,7 +419,7 @@ impl MiniSearch {
         derived_term: &str,
         term_weight: f64,
         term_boost: f64,
-        field_boosts: &[FieldBoost],
+        field_boosts: &[FieldBoost<'_>],
         bm25_params: Bm25Params,
         results: &mut RawResult,
     ) {
