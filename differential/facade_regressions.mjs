@@ -142,3 +142,36 @@ await test('async JSON reconstruction yields repeatedly and remains native', asy
   const [{ id }] = loaded.search('apple');
   assert.equal(loaded.search('apple')[0].id, id); assert.equal(loaded.has(id), true); loaded.free();
 });
+
+await test('more than 64 fields: includeMatch false takes the fused path, rows unchanged', () => {
+  // Field ids past 63 carry matches; without includeMatch no field mask is
+  // kept, so the fused path serves any field count.
+  const fields = Array.from({ length: 70 }, (_, i) => `f${i}`);
+  const words = ['apple', 'apples', 'apricot', 'pear', 'peach', 'plum', 'banana'];
+  const docs = Array.from({ length: 60 }, (_, id) => {
+    const doc = { id };
+    for (let f = 0; f < fields.length; f++) if ((id * 7 + f * 3) % 11 < 3) doc[fields[f]] = `${words[(id + f) % words.length]} ${words[(id * f) % words.length]}`;
+    doc.f69 = `${words[id % words.length]} tail`;
+    return doc;
+  });
+  const queries = ['apple', 'ap', 'aple pea', 'tail', { combineWith: 'OR', queries: ['plum', 'peach'] }];
+  for (const dirty of [false, true]) {
+    const run = C => {
+      const index = new C({ fields, autoVacuum: false, storeFields: ['f0'] });
+      index.addAll(docs);
+      if (dirty) for (const id of [3, 17, 40]) index.discard(id);
+      const out = [];
+      for (const query of queries) for (const options of [{ includeMatch: false, prefix: true, fuzzy: 0.2 }, { prefix: true }, { includeMatch: false, fields: ['f69', 'f1'] },
+        { includeMatch: false, combineWith: 'AND', prefix: true }, { includeMatch: false, filter: row => row.id % 2 === 0 }]) {
+        // includeMatch is this package's option: MiniSearch always returns
+        // match, so its rows are compared without it.
+        const rows = index.search(query, options);
+        if (C === Original && options.includeMatch === false) for (const row of rows) delete row.match;
+        out.push(rows);
+      }
+      if (C === MiniSearch) { assert.equal(index.executionMode, 'wasm'); index.free(); }
+      return out;
+    };
+    assert.deepEqual(run(MiniSearch), run(Original), `dirty=${dirty}`);
+  }
+});

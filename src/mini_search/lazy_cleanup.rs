@@ -61,7 +61,7 @@ impl MiniSearch {
             return self.transfer_from_raw(raw_results, query, per_call, shape);
         }
         if let Query::Text(text) = query {
-            if self.fused_rows_supported() {
+            if self.fused_rows_supported(shape.include_match) {
                 let transfer = self.text_query_transfer(text, per_call, shape);
                 if !self.take_stale_hit() {
                     return transfer;

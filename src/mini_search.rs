@@ -380,6 +380,23 @@ thread_local! {
 ///
 /// Slots are reset lazily via monotonic generation stamps, so there is no
 /// O(N) clear between queries — only touched docs are revisited.
+/// What a fused pass records for MiniSearch-shaped rows, beyond scores and
+/// derived terms: each document's matched query terms (`queryTerms`) and the
+/// fields each derived term matched in (`match`). The compact results need
+/// neither; `search()` with `includeMatch: false` needs no fields.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct RowTracking {
+    pub query_terms: bool,
+    pub match_fields: bool,
+}
+
+impl RowTracking {
+    const NONE: Self = Self {
+        query_terms: false,
+        match_fields: false,
+    };
+}
+
 #[derive(Default)]
 struct Scratch {
     /// Per-doc score across the whole query (spec subtotals flushed in).
@@ -415,9 +432,9 @@ struct Scratch {
     /// digits, canonical); `Object.keys` lists such terms first.
     table_index: Vec<Option<u32>>,
     lookup: FxHashMap<String, u32>,
-    /// Whether this pass also records what MiniSearch-shaped rows need (the
-    /// `match` fields and `queryTerms` below). Off for the compact paths.
-    track_rows: bool,
+    /// What this pass records beyond scores and derived terms (see
+    /// [`RowTracking`]). Nothing for the compact paths.
+    tracking: RowTracking,
     /// Per doc, parallel to `terms`: the fields a derived term was found in by
     /// the last spec that reached it, as `(spec index, field bit mask)`. JS
     /// merges specs with `Object.assign(existing.match, match)`, so a later
@@ -432,7 +449,7 @@ struct Scratch {
 
 impl Scratch {
     /// Grow to hold `len` docs and start a fresh query pass.
-    fn begin_query(&mut self, len: usize, track_rows: bool) {
+    fn begin_query(&mut self, len: usize, tracking: RowTracking) {
         if self.score.len() < len {
             self.score.resize(len, 0.0);
             self.spec_score.resize(len, 0.0);
@@ -445,10 +462,12 @@ impl Scratch {
             self.generation.resize(len, 0);
             self.spec_generation.resize(len, 0);
         }
-        self.track_rows = track_rows;
-        if track_rows && self.term_fields.len() < len {
+        self.tracking = tracking;
+        if tracking.match_fields && self.term_fields.len() < len {
             self.term_fields.resize_with(len, Vec::new);
             self.last_pos.resize(len, 0);
+        }
+        if tracking.query_terms && self.query_slots.len() < len {
             self.query_slots.resize_with(len, Vec::new);
         }
         self.query_counter = self.query_counter.wrapping_add(1);
@@ -512,8 +531,10 @@ impl Scratch {
             self.term_mask[i] = 0;
             self.first_spec[i] = spec_index;
             self.last_term[i] = u32::MAX;
-            if self.track_rows {
+            if self.tracking.match_fields {
                 self.term_fields[i].clear();
+            }
+            if self.tracking.query_terms {
                 self.query_slots[i].clear();
             }
             self.touched.push(doc);
@@ -531,7 +552,7 @@ impl Scratch {
                 None => self.wide_terms.insert((doc, term_slot)),
             };
             self.term_count[i] += u32::from(first_match);
-            if first_match && self.track_rows {
+            if first_match && self.tracking.query_terms {
                 self.query_slots[i].push(term_slot);
             }
             self.spec_touched.push(doc);
@@ -541,7 +562,8 @@ impl Scratch {
 
     /// Record that `term_id` matched doc slot `i` in `field_id` during spec
     /// `spec_index`: the doc's derived-term list (first-match order, like the
-    /// keys of JS `match`) and, when tracking rows, that term's field set.
+    /// keys of JS `match`) and, when tracking match fields, that term's field
+    /// set.
     #[inline]
     fn record_term(&mut self, i: usize, term_id: u32, spec_index: u32, field_id: FieldId) {
         if self.last_term[i] != term_id {
@@ -550,17 +572,17 @@ impl Scratch {
                 Some(position) => position,
                 None => {
                     self.terms[i].push(term_id);
-                    if self.track_rows {
+                    if self.tracking.match_fields {
                         self.term_fields[i].push((spec_index, 0));
                     }
                     self.terms[i].len() - 1
                 }
             };
-            if self.track_rows {
+            if self.tracking.match_fields {
                 self.last_pos[i] = position as u32;
             }
         }
-        if self.track_rows {
+        if self.tracking.match_fields {
             let entry = &mut self.term_fields[i][self.last_pos[i] as usize];
             if entry.0 != spec_index {
                 *entry = (spec_index, 0);
@@ -2196,7 +2218,7 @@ impl MiniSearch {
         shape: RowShape,
     ) -> CompatTransfer {
         if let Query::Text(text) = query {
-            if self.fused_rows_supported() {
+            if self.fused_rows_supported(shape.include_match) {
                 return self.text_query_transfer(text, per_call, shape);
             }
         }
@@ -2309,10 +2331,12 @@ impl MiniSearch {
         transfer
     }
 
-    /// Whether a string query can take the fused full-row path: field sets are
-    /// tracked as a 64-bit mask per (document, term).
-    fn fused_rows_supported(&self) -> bool {
-        self.options.fields.len() <= 64
+    /// Whether a string query can take the fused full-row path: the fields a
+    /// term matched in are tracked as a 64-bit mask per (document, term), so
+    /// with `include_match` an index can have at most 64 fields; without it
+    /// no fields are tracked.
+    fn fused_rows_supported(&self, include_match: bool) -> bool {
+        !include_match || self.options.fields.len() <= 64
     }
 
     /// [`Self::search_query_transfer_ordered`] for a string query on the fused
@@ -2328,9 +2352,20 @@ impl MiniSearch {
         let options = apply_partial_options(&self.options.search_options, per_call);
         let specs = self.query_specs(text, &options);
         let field_boosts = self.field_boosts(&options);
-        self.run_fused_query_with(&specs, &options, &field_boosts, true, shape.sort, |fused| {
-            self.transfer_from_fused(&fused, &specs, &field_boosts, shape)
-        })
+        // Full rows always list their query terms; the fields each term matched
+        // in only with `includeMatch`.
+        let tracking = RowTracking {
+            query_terms: true,
+            match_fields: shape.include_match,
+        };
+        self.run_fused_query_with(
+            &specs,
+            &options,
+            &field_boosts,
+            tracking,
+            shape.sort,
+            |fused| self.transfer_from_fused(&fused, &specs, &field_boosts, shape),
+        )
     }
 
     fn transfer_from_fused(
@@ -2892,18 +2927,25 @@ impl MiniSearch {
         finish: impl FnOnce(FusedHits<'_>) -> R,
     ) -> R {
         let field_boosts = self.field_boosts(options);
-        self.run_fused_query_with(specs, options, &field_boosts, false, true, finish)
+        self.run_fused_query_with(
+            specs,
+            options,
+            &field_boosts,
+            RowTracking::NONE,
+            true,
+            finish,
+        )
     }
 
     /// [`Self::run_fused_query`], optionally recording what full rows need
-    /// (`track_rows`) and optionally leaving the hits in JS `Map` order, the
+    /// (`tracking`) and optionally leaving the hits in JS `Map` order, the
     /// order a `filter` callback observes (`sort`).
     fn run_fused_query_with<R>(
         &self,
         specs: &[QuerySpec],
         options: &SearchOptions,
         field_boosts: &[FieldBoost<'_>],
-        track_rows: bool,
+        tracking: RowTracking,
         sort: bool,
         finish: impl FnOnce(FusedHits<'_>) -> R,
     ) -> R {
@@ -2913,7 +2955,7 @@ impl MiniSearch {
             // scratch instead of a borrow that is never released.
             let mut taken = cell.take();
             let scratch = &mut taken;
-            scratch.begin_query(self.next_id as usize, track_rows);
+            scratch.begin_query(self.next_id as usize, tracking);
             stat!(FusedQueries, 1);
             stat!(Specs, specs.len());
 
@@ -2984,12 +3026,12 @@ impl MiniSearch {
                 table: &scratch.table,
                 table_index: &scratch.table_index,
                 has_index_terms: scratch.table_index.iter().any(Option::is_some),
-                term_fields: if track_rows {
+                term_fields: if tracking.match_fields {
                     &scratch.term_fields
                 } else {
                     &[]
                 },
-                query_slots: if track_rows {
+                query_slots: if tracking.query_terms {
                     &scratch.query_slots
                 } else {
                     &[]
