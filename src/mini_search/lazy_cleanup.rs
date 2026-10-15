@@ -61,15 +61,13 @@ impl MiniSearch {
             return self.transfer_from_raw(raw_results, query, per_call, shape);
         }
         if let Query::Text(text) = query {
-            if self.fused_rows_supported(shape.include_match) {
-                let transfer = self.text_query_transfer(text, per_call, shape);
-                if !self.take_stale_hit() {
-                    return transfer;
-                }
-                self.invalidate_expansions();
-                let raw_results = self.execute_query_tree_lazy(query, per_call);
-                return self.transfer_from_raw(raw_results, query, per_call, shape);
+            let transfer = self.text_query_transfer(text, per_call, shape);
+            if !self.take_stale_hit() {
+                return transfer;
             }
+            self.invalidate_expansions();
+            let raw_results = self.execute_query_tree_lazy(query, per_call);
+            return self.transfer_from_raw(raw_results, query, per_call, shape);
         }
         let raw_results = self.execute_query_tree(query, per_call);
         let raw_results = if self.take_stale_hit() {

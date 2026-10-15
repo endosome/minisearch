@@ -143,15 +143,16 @@ await test('async JSON reconstruction yields repeatedly and remains native', asy
   assert.equal(loaded.search('apple')[0].id, id); assert.equal(loaded.has(id), true); loaded.free();
 });
 
-await test('more than 64 fields: includeMatch false takes the fused path, rows unchanged', () => {
-  // Field ids past 63 carry matches; without includeMatch no field mask is
-  // kept, so the fused path serves any field count.
-  const fields = Array.from({ length: 70 }, (_, i) => `f${i}`);
+await test('more than 64 fields: the fused path, with and without match, rows unchanged', () => {
+  // Field ids past 63 (and past 127) carry matches: field sets take one
+  // 64-bit word per 64 fields.
+  for (const fieldCount of [70, 130]) {
+  const fields = Array.from({ length: fieldCount }, (_, i) => `f${i}`);
   const words = ['apple', 'apples', 'apricot', 'pear', 'peach', 'plum', 'banana'];
   const docs = Array.from({ length: 60 }, (_, id) => {
     const doc = { id };
     for (let f = 0; f < fields.length; f++) if ((id * 7 + f * 3) % 11 < 3) doc[fields[f]] = `${words[(id + f) % words.length]} ${words[(id * f) % words.length]}`;
-    doc.f69 = `${words[id % words.length]} tail`;
+    doc[fields[fieldCount - 1]] = `${words[id % words.length]} tail`;
     return doc;
   });
   const queries = ['apple', 'ap', 'aple pea', 'tail', { combineWith: 'OR', queries: ['plum', 'peach'] }];
@@ -161,7 +162,7 @@ await test('more than 64 fields: includeMatch false takes the fused path, rows u
       index.addAll(docs);
       if (dirty) for (const id of [3, 17, 40]) index.discard(id);
       const out = [];
-      for (const query of queries) for (const options of [{ includeMatch: false, prefix: true, fuzzy: 0.2 }, { prefix: true }, { includeMatch: false, fields: ['f69', 'f1'] },
+      for (const query of queries) for (const options of [{ includeMatch: false, prefix: true, fuzzy: 0.2 }, { prefix: true }, { prefix: true, fuzzy: 0.2, fields: [fields[fieldCount - 1], 'f64', 'f1'] }, { includeMatch: false, fields: [fields[fieldCount - 1], 'f1'] },
         { includeMatch: false, combineWith: 'AND', prefix: true }, { includeMatch: false, filter: row => row.id % 2 === 0 }]) {
         // includeMatch is this package's option: MiniSearch always returns
         // match, so its rows are compared without it.
@@ -172,6 +173,7 @@ await test('more than 64 fields: includeMatch false takes the fused path, rows u
       if (C === MiniSearch) { assert.equal(index.executionMode, 'wasm'); index.free(); }
       return out;
     };
-    assert.deepEqual(run(MiniSearch), run(Original), `dirty=${dirty}`);
+    assert.deepEqual(run(MiniSearch), run(Original), `${fieldCount} fields, dirty=${dirty}`);
+  }
   }
 });

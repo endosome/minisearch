@@ -388,12 +388,15 @@ thread_local! {
 pub(crate) struct RowTracking {
     pub query_terms: bool,
     pub match_fields: bool,
+    /// 64-field words per derived term's field set: one for up to 64 fields.
+    pub field_words: usize,
 }
 
 impl RowTracking {
     const NONE: Self = Self {
         query_terms: false,
         match_fields: false,
+        field_words: 1,
     };
 }
 
@@ -461,7 +464,8 @@ struct Scratch {
     row_terms: Vec<Vec<u32>>,
     /// Parallel to the row's terms, when tracking match fields: the fields a
     /// derived term was found in by the last spec that reached it, as `(spec
-    /// index, field bit mask)`. JS merges specs with
+    /// index, field bit mask)`, one entry per 64 fields (`field_words` per
+    /// term: entry `term * field_words + field / 64` holds bit `field % 64`). JS merges specs with
     /// `Object.assign(existing.match, match)`, so a later spec's field list
     /// replaces an earlier one while the key keeps its place.
     row_fields: Vec<Vec<(u32, u64)>>,
@@ -602,7 +606,12 @@ impl Scratch {
                 None => {
                     terms.push(term_id);
                     if self.tracking.match_fields {
-                        self.row_fields[slot.row as usize].push((spec_index, 0));
+                        let fields = &mut self.row_fields[slot.row as usize];
+                        if self.tracking.field_words == 1 {
+                            fields.push((spec_index, 0));
+                        } else {
+                            fields.extend((0..self.tracking.field_words).map(|_| (spec_index, 0)));
+                        }
                     }
                     terms.len() - 1
                 }
@@ -610,11 +619,22 @@ impl Scratch {
             slot.last_pos = position as u32;
         }
         if self.tracking.match_fields {
-            let entry = &mut self.row_fields[slot.row as usize][slot.last_pos as usize];
-            if entry.0 != spec_index {
-                *entry = (spec_index, 0);
+            let words = self.tracking.field_words;
+            if words == 1 {
+                // Up to 64 fields, the common case: one word per term.
+                let entry = &mut self.row_fields[slot.row as usize][slot.last_pos as usize];
+                if entry.0 != spec_index {
+                    *entry = (spec_index, 0);
+                }
+                entry.1 |= 1u64 << field_id;
+                return;
             }
-            entry.1 |= 1u64 << field_id;
+            let base = slot.last_pos as usize * words;
+            let term_fields = &mut self.row_fields[slot.row as usize][base..base + words];
+            if term_fields[0].0 != spec_index {
+                term_fields.fill((spec_index, 0));
+            }
+            term_fields[field_id / 64].1 |= 1u64 << (field_id % 64);
         }
     }
 }
@@ -677,6 +697,8 @@ struct FusedHits<'a> {
     /// [`term_slot_table`]).
     row_terms: &'a [Vec<u32>],
     row_fields: &'a [Vec<(u32, u64)>],
+    /// Entries per derived term in `row_fields` (see `Scratch::row_fields`).
+    field_words: usize,
     row_query_slots: &'a [Vec<u32>],
     /// Interned derived terms.
     table: &'a [String],
@@ -2261,9 +2283,7 @@ impl MiniSearch {
         shape: RowShape,
     ) -> CompatTransfer {
         if let Query::Text(text) = query {
-            if self.fused_rows_supported(shape.include_match) {
-                return self.text_query_transfer(text, per_call, shape);
-            }
+            return self.text_query_transfer(text, per_call, shape);
         }
         let raw_results = self.execute_query_tree(query, per_call);
         self.transfer_from_raw(raw_results, query, per_call, shape)
@@ -2374,14 +2394,6 @@ impl MiniSearch {
         transfer
     }
 
-    /// Whether a string query can take the fused full-row path: the fields a
-    /// term matched in are tracked as a 64-bit mask per (document, term), so
-    /// with `include_match` an index can have at most 64 fields; without it
-    /// no fields are tracked.
-    fn fused_rows_supported(&self, include_match: bool) -> bool {
-        !include_match || self.options.fields.len() <= 64
-    }
-
     /// [`Self::search_query_transfer_ordered`] for a string query on the fused
     /// dense path: the same rows, scores and order as the per-spec maps of
     /// `execute_query`, without allocating a map entry, a term list and a
@@ -2400,6 +2412,7 @@ impl MiniSearch {
         let tracking = RowTracking {
             query_terms: true,
             match_fields: shape.include_match,
+            field_words: self.options.fields.len().div_ceil(64).max(1),
         };
         self.run_fused_query_with(
             &specs,
@@ -2499,11 +2512,23 @@ impl MiniSearch {
                     } else {
                         k
                     };
-                    let mask = fused.row_fields(row_index)[position].1;
+                    let words = fused.field_words;
                     // JS pushes a term's fields in `Object.keys(boosts)` order.
-                    for field_boost in field_boosts {
-                        if mask & (1u64 << field_boost.field_id) != 0 {
-                            transfer.field_ids.push(field_boost.field_id as u32);
+                    if words == 1 {
+                        let mask = fused.row_fields(row_index)[position].1;
+                        for field_boost in field_boosts {
+                            if mask & (1u64 << field_boost.field_id) != 0 {
+                                transfer.field_ids.push(field_boost.field_id as u32);
+                            }
+                        }
+                    } else {
+                        let masks =
+                            &fused.row_fields(row_index)[position * words..(position + 1) * words];
+                        for field_boost in field_boosts {
+                            let field = field_boost.field_id;
+                            if masks[field / 64].1 & (1u64 << (field % 64)) != 0 {
+                                transfer.field_ids.push(field as u32);
+                            }
                         }
                     }
                     transfer.field_offsets.push(transfer.field_ids.len() as u32);
@@ -3069,6 +3094,7 @@ impl MiniSearch {
                 hits,
                 row_terms: &scratch.row_terms,
                 row_fields: &scratch.row_fields,
+                field_words: tracking.field_words,
                 row_query_slots: &scratch.row_query_slots,
                 table: &scratch.table,
                 table_index: &scratch.table_index,
