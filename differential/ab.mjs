@@ -4,7 +4,10 @@
 // report gives medians, quartiles and the candidate/baseline ratio.
 //
 //   node differential/ab.mjs [--a target/pkg-baseline] [--b pkg] [--rounds 7]
-//     [--only name,name] [--out ab.json]
+//     [--only name,name] [--skip name,name] [--out ab.json]
+//
+// --skip leaves out workloads whose output is expected to differ, such as
+// behavior a change fixed.
 //
 // Freeze a baseline once with `cp -r pkg target/pkg-baseline` (before the
 // change), rebuild, then run. Outputs are compared too: a workload whose
@@ -107,8 +110,8 @@ if (process.argv.includes('--child')) {
 } else {
   const a = argument('--a', 'target/pkg-baseline'), b = argument('--b', 'pkg');
   const rounds = Number(argument('--rounds', 7));
-  const only = argument('--only')?.split(',');
-  const names = Object.keys(WORKLOADS).filter(n => !only || only.some(o => n.includes(o)));
+  const only = argument('--only')?.split(','), skip = argument('--skip')?.split(',') ?? [];
+  const names = Object.keys(WORKLOADS).filter(n => (!only || only.some(o => n.includes(o))) && !skip.some(o => n.includes(o)));
   const child = pkg => JSON.parse(execFileSync(process.execPath, ['--expose-gc', fileURLToPath(import.meta.url), '--child', pkg, '--names', names.join('|')],
     { cwd: root, encoding: 'utf8', maxBuffer: 1 << 26 }));
   const samples = { a: {}, b: {} };
