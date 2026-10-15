@@ -303,7 +303,10 @@ impl<T: Clone> SearchableMap<T> {
     }
 
     pub fn keys(&self) -> Vec<String> {
-        self.entries().into_iter().map(|(key, _)| key).collect()
+        // The keys alone, in `entries` order, without cloning the values.
+        let mut keys = Vec::with_capacity(self.len);
+        collect_keys(&self.root, &mut String::new(), &mut keys);
+        keys
     }
 
     pub fn values(&self) -> Vec<T> {
@@ -436,13 +439,13 @@ fn delete_from<T>(node: &mut RadixNode<T>, key: &str) -> bool {
     }
 
     for index in 0..node.children.len() {
-        let child_key = node.children[index].0.clone();
-
-        if !key.starts_with(&child_key) {
+        let child_key = node.children[index].0.as_str();
+        if !key.starts_with(child_key) {
             continue;
         }
+        let rest = &key[child_key.len()..];
 
-        let deleted = delete_from(&mut node.children[index].1, &key[child_key.len()..]);
+        let deleted = delete_from(&mut node.children[index].1, rest);
         if deleted {
             compact_child(node, index);
         }
@@ -472,6 +475,28 @@ fn compact_child<T>(node: &mut RadixNode<T>, index: usize) {
         let (suffix, grandchild) = middle.children.remove(0);
         merged_key.push_str(&suffix);
         node.children.push((merged_key, grandchild));
+    }
+}
+
+/// [`collect_entries`] without the values.
+fn collect_keys<T>(node: &RadixNode<T>, prefix: &mut String, keys: &mut Vec<String>) {
+    let slot = node.leaf_slot();
+    for (child_key, child) in node.children[slot..].iter().rev() {
+        let prefix_len = prefix.len();
+        prefix.push_str(child_key);
+        collect_keys(child, prefix, keys);
+        prefix.truncate(prefix_len);
+    }
+
+    if node.leaf.is_some() {
+        keys.push(prefix.clone());
+    }
+
+    for (child_key, child) in node.children[..slot].iter().rev() {
+        let prefix_len = prefix.len();
+        prefix.push_str(child_key);
+        collect_keys(child, prefix, keys);
+        prefix.truncate(prefix_len);
     }
 }
 

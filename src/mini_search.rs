@@ -1947,12 +1947,15 @@ impl MiniSearch {
             (start, end, state.terms.len())
         };
 
+        // Moved out of the queue, not copied: each term is read once, in order.
         let terms: Vec<String> = self
             .vacuum_state
-            .as_ref()
+            .as_mut()
             .expect("vacuum state exists")
             .terms[start..end]
-            .to_vec();
+            .iter_mut()
+            .map(std::mem::take)
+            .collect();
 
         // Clear cached posting handles before mutating so `Rc::make_mut`
         // works in place.
