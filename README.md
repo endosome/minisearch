@@ -174,6 +174,15 @@ for (let i = 0; i < raw.count; i++) {
 // Compatibility path — MiniSearch-shaped result objects (slower, see above):
 const full = mini.search("software engineer", { combineWith: "AND" });
 
+// Opt-in shortcuts, each defined by search() with the same arguments: the
+// same rows, scores and order, only less of them. They build and transfer
+// only what they return (on the bench corpus 0.35-0.45x the time of the
+// search() expression), and fall back to search() itself where a callback or
+// a stored `id`/`score` field shapes the rows.
+const top10 = mini.searchTopK("software engineer", { limit: 10 }); // search(...).slice(0, 10)
+const pairs = mini.searchScores("software engineer");  // [{ id, score }, …] in search() order
+const total = mini.countMatches("software engineer");  // search(...).length
+
 // Query-expression trees and wildcard, like JS MiniSearch: subqueries combine
 // with AND / OR / AND_NOT and nest arbitrarily; a node's other keys override
 // the search options for its subtree. `MiniSearchWasm.wildcard` matches every

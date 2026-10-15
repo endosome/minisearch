@@ -6,6 +6,14 @@ Notable changes to `minisearch-wasm`. Versions before 0.7.0 are summarized in
 
 ## Unreleased
 
+### Added
+
+- `searchTopK(query, { limit, ...options })`, `searchScores(query, options)`
+  and `countMatches(query, options)`: `search()`'s first `limit` rows, its
+  `{ id, score }` pairs and its length, building and transferring only that
+  (0.35-0.45x the time of the `search()` expression on the bench corpus). See
+  COMPATIBILITY.md for when they fall back to `search()` itself.
+
 ### Fixed
 
 - `search()` on an index whose stored fields include `score` read each

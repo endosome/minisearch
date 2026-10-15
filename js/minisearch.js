@@ -264,6 +264,9 @@ export class MiniSearchWasm {
     // toJSON), where the caller may add one. Otherwise their keys are only
     // the storeFields names and no check is needed.
     this._scoreStored = !!options.storeFields?.includes?.('score');
+    // A stored `id` replaces a result's own id, as a stored `score` does its
+    // score (the opt-in methods below read only these two).
+    this._idStored = !!options.storeFields?.includes?.('id');
     this._storedExposed = false;
     // MiniSearch's averageFieldLength array, by what each entry is: a hole
     // (no document had the field), `null` (read from JSON), or `true` (set).
@@ -747,6 +750,50 @@ export class MiniSearchWasm {
     if (options.includeMatch === false) for (const row of rows) delete row.match;
     return rows;
   }
+  // Opt-in methods, each defined by search(): the same rows, scores and
+  // order, less of them. Where a stored field could replace a row's `id` or
+  // `score`, or a callback sees rows, they take search()'s own result.
+  searchTopK(query, options) {
+    this._check();
+    const limit = options?.limit;
+    if (!Number.isInteger(limit) || limit < 0) throw new TypeError('MiniSearch: searchTopK needs options.limit, a non-negative integer');
+    const { limit: _, ...rest } = options;
+    if (!this._js && query !== Original.wildcard && this._ownRows()) {
+      const plan = this._plan(query, rest);
+      if (plan !== unsupported && !plan.filter && plan.boost === undefined) {
+        return this._results(this._rows(plan, { ...plan.options, limit }, true), rest.includeMatch !== false);
+      }
+    }
+    return this.search(query, rest).slice(0, limit);
+  }
+  searchScores(query, options) {
+    this._check();
+    options ??= {};
+    if (!this._js && this._ownRows() && !this._idStored) {
+      const plan = this._compactPlan(query, options);
+      if (nativeCompact(plan)) {
+        const { docIds, scores } = this._wasm.searchJoinedOpts(plan.query, plan.options);
+        const ids = this._ids, rows = new Array(docIds.length);
+        for (let i = 0; i < docIds.length; i++) rows[i] = { id: ids[docIds[i]], score: scores[i] };
+        return rows;
+      }
+    }
+    return this.search(query, options).map(row => ({ id: row.id, score: row.score }));
+  }
+  countMatches(query, options) {
+    this._check();
+    options ??= {};
+    // Stored fields change rows, never their number.
+    if (!this._js && this.search === MiniSearchWasm.prototype.search) {
+      const plan = this._compactPlan(query, options);
+      if (nativeCompact(plan)) return this._wasm.searchCount(plan.query, plan.options);
+    }
+    return this.search(query, options).length;
+  }
+  // Whether search() rows carry their own score, in the engine's order.
+  _ownRows() {
+    return !this._scoreStored && !this._storedExposed && this.search === MiniSearchWasm.prototype.search;
+  }
   _wasmSearch(query, options) {
     const plan = this._plan(query, options);
     if (plan === unsupported) return unsupported;
@@ -1178,6 +1225,7 @@ export class MiniSearchWasm {
       this._hasStored = true;
       const fields = stored[shortId];
       if (fields != null && propertyIsEnumerable.call(fields, 'score')) this._scoreStored = true;
+      if (fields != null && propertyIsEnumerable.call(fields, 'id')) this._idStored = true;
     }
     this._ids = ids;
     this._stored = stored;

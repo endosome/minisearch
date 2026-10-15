@@ -1387,6 +1387,60 @@ pub(crate) struct RowShape {
     pub include_match: bool,
     pub sort: bool,
     pub identity: bool,
+    /// Sorted rows only: transfer at most this many, the first in order.
+    pub limit: Option<usize>,
+}
+
+/// Sort by score, descending and stable, like JS `rows.sort(byScore)`
+/// (incomparable scores count as equal), keeping the first `limit`.
+fn rank_by_score<T>(items: &mut Vec<T>, score: impl Fn(&T) -> f64, limit: Option<usize>) {
+    if let Some(limit) = limit.filter(|&limit| limit < items.len()) {
+        let scores: Vec<f64> = items.iter().map(&score).collect();
+        if let Some(kept) = top_positions(&scores, limit) {
+            let mut slots: Vec<Option<T>> = items.drain(..).map(Some).collect();
+            items.extend(
+                kept.into_iter()
+                    .map(|at| slots[at as usize].take().expect("distinct")),
+            );
+            return;
+        }
+    }
+    items.sort_by(|left, right| {
+        score(right)
+            .partial_cmp(&score(left))
+            .unwrap_or(Ordering::Equal)
+    });
+    if let Some(limit) = limit {
+        items.truncate(limit);
+    }
+}
+
+/// The positions of the `limit` best scores, in rank order: partial selection
+/// by (score descending, position), a total order that picks and orders
+/// exactly what a stable sort puts first. `None` when a score is NaN (the
+/// stable sort's order is then the only definition).
+fn top_positions(scores: &[f64], limit: usize) -> Option<Vec<u32>> {
+    if scores.iter().any(|score| score.is_nan()) {
+        return None;
+    }
+    let mut keyed: Vec<(f64, u32)> = scores
+        .iter()
+        .enumerate()
+        .map(|(at, &score)| (score, at as u32))
+        .collect();
+    let order = |left: &(f64, u32), right: &(f64, u32)| {
+        right
+            .0
+            .partial_cmp(&left.0)
+            .unwrap_or(Ordering::Equal)
+            .then(left.1.cmp(&right.1))
+    };
+    if limit > 0 {
+        keyed.select_nth_unstable_by(limit - 1, order);
+    }
+    keyed.truncate(limit);
+    keyed.sort_unstable_by(order);
+    Some(keyed.into_iter().map(|(_, at)| at).collect())
 }
 
 fn intern_term<'a>(
@@ -2290,6 +2344,7 @@ impl MiniSearch {
         raw_results: RawResult,
         sort_by_score: bool,
         filter: Option<&BTreeMap<String, Value>>,
+        limit: Option<usize>,
     ) -> Vec<(ShortId, f64, RawResultValue)> {
         let mut ranked: Vec<(ShortId, f64, RawResultValue)> = raw_results
             .into_entries()
@@ -2302,9 +2357,7 @@ impl MiniSearch {
         if sort_by_score {
             // Stable and by score only, like JS `results.sort(byScore)`: equal
             // scores keep the `Map` order `RawResult` preserved.
-            ranked.sort_by(|(_, left, _), (_, right, _)| {
-                right.partial_cmp(left).unwrap_or(Ordering::Equal)
-            });
+            rank_by_score(&mut ranked, |(_, score, _)| *score, limit);
         }
         ranked
     }
@@ -2326,6 +2379,7 @@ impl MiniSearch {
                 include_match,
                 sort: true,
                 identity: true,
+                limit: None,
             },
         )
     }
@@ -2355,7 +2409,8 @@ impl MiniSearch {
         let include_match = shape.include_match;
         let sort_by_score = shape.sort && !matches!(query, Query::Wildcard);
         let filter = apply_partial_options(&self.options.search_options, per_call).filter;
-        let ranked = self.ranked_raw_results(raw_results, sort_by_score, filter.as_ref());
+        let ranked =
+            self.ranked_raw_results(raw_results, sort_by_score, filter.as_ref(), shape.limit);
         stat!(RowsMaterialized, ranked.len());
 
         let mut transfer = CompatTransfer {
@@ -2473,7 +2528,7 @@ impl MiniSearch {
             &options,
             &field_boosts,
             tracking,
-            shape.sort,
+            shape.sort.then_some(shape.limit),
             |fused| self.transfer_from_fused(&fused, &specs, &field_boosts, shape),
         )
     }
@@ -2893,6 +2948,14 @@ impl MiniSearch {
         self.search_joined_with(query, &options)
     }
 
+    /// How many results `search_joined_opts` would return, without building
+    /// them.
+    pub fn search_count(&self, query: &str, per_call: &PartialSearchOptions) -> usize {
+        let options = apply_partial_options(&self.options.search_options, per_call);
+        let specs = self.query_specs(query, &options);
+        self.run_fused_query(&specs, &options, |fused| fused.hits.len())
+    }
+
     /// Engine side of the Wasm `searchRaw`: ranked hits as short doc ids +
     /// scores, matched terms as ids into a per-query interned term table.
     /// Present keys of `per_call` override the configured search options.
@@ -3040,21 +3103,22 @@ impl MiniSearch {
             options,
             &field_boosts,
             RowTracking::NONE,
-            true,
+            Some(None),
             finish,
         )
     }
 
     /// [`Self::run_fused_query`], optionally recording what full rows need
-    /// (`tracking`) and optionally leaving the hits in JS `Map` order, the
-    /// order a `filter` callback observes (`sort`).
+    /// (`tracking`), and with the hits sorted and cut to a limit
+    /// (`ranking`: `Some(limit)`) or left in JS `Map` order, the order a
+    /// `filter` callback observes (`None`).
     fn run_fused_query_with<R>(
         &self,
         specs: &[QuerySpec],
         options: &SearchOptions,
         field_boosts: &[FieldBoost<'_>],
         tracking: RowTracking,
-        sort: bool,
+        ranking: Option<Option<usize>>,
         finish: impl FnOnce(FusedHits<'_>) -> R,
     ) -> R {
         SCRATCH.with(|cell| {
@@ -3119,12 +3183,8 @@ impl MiniSearch {
                 hits.retain(|(doc_id, _, _)| self.matches_filter(*doc_id, filter));
             }
 
-            if sort {
-                hits.sort_by(|(_, left_score, _), (_, right_score, _)| {
-                    right_score
-                        .partial_cmp(left_score)
-                        .unwrap_or(Ordering::Equal)
-                });
+            if let Some(limit) = ranking {
+                rank_by_score(&mut hits, |(_, score, _)| *score, limit);
             }
 
             phase_end!(rank);

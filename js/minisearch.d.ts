@@ -62,6 +62,12 @@ export class MiniSearchWasm<T = any> {
   has(id: any): boolean;
   getStoredFields(id: any): Record<string, unknown> | undefined;
   search(query: Query, options?: SearchOptions): SearchResult[];
+  /** The first `options.limit` rows of `search(query, options)`; builds only those. */
+  searchTopK(query: Query, options: SearchOptions & { limit: number }): SearchResult[];
+  /** `search(query, options)` as `{ id, score }` pairs, in its order. */
+  searchScores(query: Query, options?: SearchOptions): Array<{ id: any; score: number }>;
+  /** `search(query, options).length`, without building rows. */
+  countMatches(query: Query, options?: SearchOptions): number;
   autoSuggest(query: string, options?: SearchOptions): Suggestion[];
   searchJoined(query: string, orMode?: boolean): JoinedResults;
   searchJoinedOpts(query: string, options?: SearchOptions): JoinedResults;

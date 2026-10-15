@@ -9,7 +9,7 @@
     "build:core": "node scripts/build-core.mjs",
     "build:stats": "node scripts/build-stats.mjs",
     "profile": "npm run build:stats && node --expose-gc differential/profile.mjs",
-    "test:wasm": "node differential/wasm_smoke.mjs && node differential/high_priority_regressions.mjs && node differential/compat_parity.mjs && node differential/api_parity.mjs && node differential/public_api.mjs && node differential/wasm_residency.mjs && node differential/core_robustness.mjs && node differential/facade_regressions.mjs && node differential/callback_traces.mjs && node differential/native_executions.mjs",
+    "test:wasm": "node differential/wasm_smoke.mjs && node differential/high_priority_regressions.mjs && node differential/compat_parity.mjs && node differential/api_parity.mjs && node differential/public_api.mjs && node differential/wasm_residency.mjs && node differential/core_robustness.mjs && node differential/facade_regressions.mjs && node differential/callback_traces.mjs && node differential/native_executions.mjs && node differential/opt_in_apis.mjs",
     "bench:maintenance": "npm run build && node differential/bench_maintenance.mjs",
     "bench:public": "npm run build && node differential/gen_corpus.mjs differential/bench_corpus.json 20000 && node --expose-gc differential/bench_public.mjs",
     "publish:pkg": "npm run build && npm test && npm publish ./pkg",

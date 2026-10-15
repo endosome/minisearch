@@ -43,6 +43,7 @@ impl MiniSearch {
                 include_match,
                 sort: true,
                 identity: true,
+                limit: None,
             },
         )
     }
@@ -229,6 +230,18 @@ impl MiniSearch {
         self.ranked_lazy(&specs, &options).len()
     }
 
+    /// [`Self::search_count`] with JS MiniSearch's dirty-index behavior.
+    pub fn search_count_exact(&mut self, query: &str, per_call: &PartialSearchOptions) -> usize {
+        self.stale_hit.0.set(false);
+        let count = self.search_count(query, per_call);
+        if !self.take_stale_hit() {
+            return count;
+        }
+        let options = apply_partial_options(&self.options.search_options, per_call);
+        let specs = self.query_specs(query, &options);
+        self.ranked_lazy(&specs, &options).len()
+    }
+
     /// [`Self::auto_suggest`] with JS MiniSearch's dirty-index behavior.
     pub fn auto_suggest_exact(
         &mut self,
@@ -286,7 +299,7 @@ impl MiniSearch {
             .map(|spec| self.execute_query_spec_lazy(spec, options))
             .collect::<Vec<_>>();
         let raw_results = combine_results(results, options.combine_with);
-        self.ranked_raw_results(raw_results, true, options.filter.as_ref())
+        self.ranked_raw_results(raw_results, true, options.filter.as_ref(), None)
     }
 
     /// Mutating mirror of [`Self::execute_query_tree`].

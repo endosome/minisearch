@@ -176,6 +176,19 @@ full results when custom callbacks emit delimiter-containing terms, or IDs
 depend on reference identity or cannot survive JSON. Full results preserve
 those JavaScript values.
 
+*Since the next release*, three extensions are defined by `search()` with the
+same arguments and return MiniSearch's own values: `searchTopK(query, { limit,
+...options })` is `search(query, options).slice(0, limit)` (with `limit` a
+non-negative integer); `searchScores(query, options)` is
+`search(query, options).map(({ id, score }) => ({ id, score }))`;
+`countMatches(query, options)` is `search(query, options).length`. Ids keep
+their JavaScript values, ties keep `search()`'s order, and on an index with
+discarded documents each call cleans up what it reaches, as one `search()`
+would. Where callbacks see rows, or a stored field named `id` or `score` can
+replace a row's own (including a property added to an object `getStoredFields`
+or `toJSON` handed out), they take `search()`'s result. A subclass that
+overrides `search` gets its override.
+
 ## Lifecycle and compaction
 
 The active vacuum and queued vacuum have distinct promises; repeated requests

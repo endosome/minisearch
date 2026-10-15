@@ -12,5 +12,11 @@ MiniSearch.getDefault('tokenize')('a b');
 MiniSearchWasm.getDefault('tokenize')('a b');
 const bm25: BM25Params = { k: 1.2, b: 0.7, d: 0.5 };
 named.search('apple', { bm25 });
+const top: import('minisearch').SearchResult[] = index.searchTopK('apple', { limit: 10, prefix: true });
+const pairs: Array<{ id: any; score: number }> = index.searchScores('apple', { fuzzy: 0.2 });
+const count: number = index.countMatches(MiniSearch.wildcard);
+// @ts-expect-error searchTopK needs a limit.
+index.searchTopK('apple', { prefix: true });
+void top; void pairs; void count;
 // @ts-expect-error The document generic is enforced.
 index.add({ id: 'wrong', title: 'x', category: 'y' });

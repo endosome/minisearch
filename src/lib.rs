@@ -479,12 +479,14 @@ impl MiniSearchWasm {
     ) -> Result<JsValue, JsValue> {
         let options = options.unwrap_or(JsValue::UNDEFINED);
         let include_match = read_bool_option(&options, "includeMatch", true);
+        let limit = read_limit_option(&options)?;
         let per_call = parse_search_options(&options)?;
         let query = parse_query(&query)?;
         let shape = mini_search::RowShape {
             include_match,
             sort,
             identity: false,
+            limit,
         };
         let transfer = match boost {
             None => self.transfer(&query, &per_call, shape),
@@ -762,6 +764,22 @@ impl MiniSearchWasm {
         Ok(joined_to_js(
             &self.inner.borrow().search_joined_opts(query, &per_call),
         ))
+    }
+
+    /// Internal facade boundary: the number of results of `searchJoinedOpts`
+    /// for the same arguments, built and transferred for none.
+    #[wasm_bindgen(js_name = searchCount, skip_typescript)]
+    pub fn search_count_js(
+        &self,
+        #[wasm_bindgen(unchecked_param_type = "string")] query: JsValue,
+        #[wasm_bindgen(unchecked_param_type = "SearchOptions")] options: Option<JsValue>,
+    ) -> Result<f64, JsValue> {
+        let query = &query_arg(&query)?;
+        let per_call = parse_search_options(&options.unwrap_or(JsValue::UNDEFINED))?;
+        if self.exact_dirty() {
+            return Ok(self.inner.borrow_mut().search_count_exact(query, &per_call) as f64);
+        }
+        Ok(self.inner.borrow().search_count(query, &per_call) as f64)
     }
 
     /// The most boundary-frugal search: everything numeric. Returns
@@ -1144,6 +1162,7 @@ impl MiniSearchWasm {
             include_match,
             sort: sort_results,
             identity: true,
+            limit: None,
         };
         build_results(&self.transfer(&query, &per_call, shape), include_match)
     }
@@ -1787,6 +1806,23 @@ fn read_bool_option(options: &JsValue, key: &str, default: bool) -> bool {
         Ok(value) if value.is_undefined() || value.is_null() => default,
         Ok(value) => value.as_bool().unwrap_or(default),
         Err(_) => default,
+    }
+}
+
+/// The `limit` of a top-K transfer: absent, or a whole number of rows.
+fn read_limit_option(options: &JsValue) -> Result<Option<usize>, JsValue> {
+    if !options.is_object() {
+        return Ok(None);
+    }
+    let value = Reflect::get(options, &JsValue::from_str("limit")).unwrap_or(JsValue::UNDEFINED);
+    if value.is_undefined() {
+        return Ok(None);
+    }
+    match value.as_f64() {
+        Some(limit) if limit >= 0.0 && limit.fract() == 0.0 => {
+            Ok(Some(limit.min(usize::MAX as f64) as usize))
+        }
+        _ => Err(js_error("MiniSearch: limit must be a non-negative integer")),
     }
 }
 
