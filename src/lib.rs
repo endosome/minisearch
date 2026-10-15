@@ -1,6 +1,8 @@
 // Without `core-api`, code only its methods reach is left for the linker to drop.
 #![cfg_attr(not(feature = "core-api"), allow(dead_code, unused_imports))]
 
+#[cfg(target_arch = "wasm32")]
+mod alloc;
 mod js_math;
 mod mini_search;
 mod searchable_map;
@@ -11,6 +13,9 @@ mod stats;
 #[cfg(all(feature = "stats", target_arch = "wasm32"))]
 #[global_allocator]
 static ALLOCATOR: stats::CountingAllocator = stats::CountingAllocator;
+#[cfg(all(not(feature = "stats"), target_arch = "wasm32"))]
+#[global_allocator]
+static ALLOCATOR: alloc::Global = alloc::Global::new();
 
 pub use js_math::log as js_log;
 pub use mini_search::{

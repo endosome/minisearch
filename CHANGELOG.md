@@ -35,6 +35,12 @@ Notable changes to `minisearch-wasm`. Versions before 0.7.0 are summarized in
   retained per-query memory of large indexes. Full rows with match data take
   the fused path for any number of fields (previously the map-based path above
   64 fields).
+- Linear memory grows in steps of an eighth of its size (1 to 64 MiB) instead
+  of about one allocation's worth. Every grow made V8 run a full garbage
+  collection every few grows, so building a large index was quadratic in its
+  size: 1M documents took 357 s and now take 38 s. The first queries on an
+  index with discarded documents, which allocate heavily, are about 8x faster.
+  The allocator is the same dlmalloc as before, now a direct dependency.
 - Compacting the index (after a vacuum frees at least half the ids) renumbers
   postings through a table indexed by old id, or a fast hash map when
   historical ids are sparse, in one walk of the term tree.

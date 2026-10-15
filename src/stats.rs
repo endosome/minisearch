@@ -13,7 +13,7 @@
 
 #[cfg(feature = "stats")]
 mod imp {
-    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::alloc::{GlobalAlloc, Layout};
     use std::cell::Cell;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -139,6 +139,12 @@ mod imp {
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub struct CountingAllocator;
 
+    /// What the counting allocator forwards to: the release build's allocator.
+    #[cfg(target_arch = "wasm32")]
+    static INNER: crate::alloc::Global = crate::alloc::Global::new();
+    #[cfg(not(target_arch = "wasm32"))]
+    static INNER: std::alloc::System = std::alloc::System;
+
     static LIVE: AtomicUsize = AtomicUsize::new(0);
     static PEAK: AtomicUsize = AtomicUsize::new(0);
 
@@ -149,25 +155,25 @@ mod imp {
 
     unsafe impl GlobalAlloc for CountingAllocator {
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-            let pointer = unsafe { System.alloc(layout) };
+            let pointer = unsafe { INNER.alloc(layout) };
             if !pointer.is_null() {
                 grew(layout.size());
             }
             pointer
         }
         unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-            let pointer = unsafe { System.alloc_zeroed(layout) };
+            let pointer = unsafe { INNER.alloc_zeroed(layout) };
             if !pointer.is_null() {
                 grew(layout.size());
             }
             pointer
         }
         unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
-            unsafe { System.dealloc(pointer, layout) };
+            unsafe { INNER.dealloc(pointer, layout) };
             LIVE.fetch_sub(layout.size(), Ordering::Relaxed);
         }
         unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-            let moved = unsafe { System.realloc(pointer, layout, new_size) };
+            let moved = unsafe { INNER.realloc(pointer, layout, new_size) };
             if !moved.is_null() {
                 if new_size >= layout.size() {
                     grew(new_size - layout.size());
