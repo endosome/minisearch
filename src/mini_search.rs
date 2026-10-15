@@ -1413,10 +1413,15 @@ struct FuzzyExpansion {
 /// Correctness: any index mutation clears the cache (see
 /// `invalidate_expansions` callers) *before* touching the tree, so the
 /// posting handles are unique again and `Rc::make_mut` mutates in place.
+/// A term's cached fuzzy expansions, one list per max distance.
+type FuzzyByDistance = Vec<(usize, std::rc::Rc<Vec<FuzzyExpansion>>)>;
+
 #[derive(Default)]
 struct ExpansionCache {
     prefix: FxHashMap<String, std::rc::Rc<Vec<PrefixExpansion>>>,
-    fuzzy: FxHashMap<(String, usize), std::rc::Rc<Vec<FuzzyExpansion>>>,
+    /// By term, then by max distance (a query uses one or two): a hit is one
+    /// lookup by `&str`, without building an owned key.
+    fuzzy: FxHashMap<String, FuzzyByDistance>,
 }
 
 /// Cap on entries per cache map; on overflow the map is cleared (crude, but
@@ -3224,6 +3229,7 @@ impl MiniSearch {
             self.accumulate_dense(
                 scratch,
                 term_id,
+                &query.term,
                 spec_index,
                 term_slot,
                 1.0,
@@ -3246,6 +3252,7 @@ impl MiniSearch {
                 self.accumulate_dense(
                     scratch,
                     term_id,
+                    &expansion.term,
                     spec_index,
                     term_slot,
                     weight,
@@ -3285,6 +3292,7 @@ impl MiniSearch {
                     self.accumulate_dense(
                         scratch,
                         term_id,
+                        &expansion.term,
                         spec_index,
                         term_slot,
                         weight,
@@ -3404,6 +3412,7 @@ impl MiniSearch {
         &self,
         scratch: &mut Scratch,
         term_id: u32,
+        derived_term: &str,
         spec_index: u32,
         term_slot: u32,
         term_weight: f64,
@@ -3416,7 +3425,7 @@ impl MiniSearch {
         // per-posting liveness check is pure overhead we can skip.
         let clean = self.dirt_count == 0;
         let num_fields = self.options.fields.len();
-        let boosted_term = boosting().then(|| scratch.table[term_id as usize].clone());
+        let boosted_term = boosting().then_some(derived_term);
 
         for field_boost in field_boosts {
             let field_id = field_boost.field_id;
@@ -3442,7 +3451,7 @@ impl MiniSearch {
             // Hoist it out of the per-posting loop instead of recomputing it for
             // every document. Bit-identical to the inlined form.
             let idf = bm25_idf(matching_fields as f64, self.document_count as f64);
-            let mut boosts = ListBoosts::of(boosted_term.as_deref(), field_term_freqs, |doc_id| {
+            let mut boosts = ListBoosts::of(boosted_term, field_term_freqs, |doc_id| {
                 clean || self.alive[doc_id as usize]
             });
 
@@ -3541,8 +3550,18 @@ impl MiniSearch {
         max_distance: usize,
     ) -> std::rc::Rc<Vec<FuzzyExpansion>> {
         phase!(Expand);
-        let key = (term.to_owned(), max_distance);
-        if let Some(hit) = self.query_cache.0.borrow().fuzzy.get(&key) {
+        if let Some((_, hit)) =
+            self.query_cache
+                .0
+                .borrow()
+                .fuzzy
+                .get(term)
+                .and_then(|by_distance| {
+                    by_distance
+                        .iter()
+                        .find(|(distance, _)| *distance == max_distance)
+                })
+        {
             stat!(FuzzyCacheHits, 1);
             return std::rc::Rc::clone(hit);
         }
@@ -3568,7 +3587,11 @@ impl MiniSearch {
         if cache.fuzzy.len() >= EXPANSION_CACHE_CAP {
             cache.fuzzy.clear();
         }
-        cache.fuzzy.insert(key, std::rc::Rc::clone(&expansions));
+        cache
+            .fuzzy
+            .entry(term.to_owned())
+            .or_default()
+            .push((max_distance, std::rc::Rc::clone(&expansions)));
         expansions
     }
 
