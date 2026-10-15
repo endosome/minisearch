@@ -45,6 +45,8 @@ const WORKLOADS = {
   // Long articles (WP-09): ~800 words per document from a Zipf-like vocabulary.
   'addAll long text': { setup: 'empty', corpus: 'long', fresh: true, repeat: 1, run: (ix, qs, docs) => { ix.addAll(docs); return ix.documentCount + ix.termCount; } },
   'search long text': { corpus: 'long', run: (ix, qs) => sumRows(qs.map(q => ix.search(q, { prefix: true }))) },
+  // 60% free ids: the facade compacts after the vacuum.
+  'discard 60% + vacuum + compact': { fresh: true, repeat: 1, run: async (ix, qs, docs) => { for (const d of docs) if (d.id % 5 < 3) ix.discard(d.id); await ix.vacuum(); return ix.documentCount + ix.termCount + ix.search('engine').length; } },
   'discard 25% + vacuum': { fresh: true, repeat: 1, run: async (ix, qs, docs) => { for (const d of docs) if (d.id % 4 === 0) ix.discard(d.id); await ix.vacuum(); return ix.documentCount + ix.termCount; } },
 };
 function sumRows(batches) {

@@ -28,6 +28,16 @@ Notable changes to `minisearch-wasm`. Versions before 0.7.0 are summarized in
   fused path. The engine no longer builds transfer strings the facade does not
   read, prepares field boosts once per query, and copies less in radix
   deletion, vacuum, fuzzy-cache lookups and boosted scoring.
+- `search()` builds result rows about twice as fast: arrays are allocated at
+  their final length (the rows, their order and their objects are unchanged).
+  Scoring keeps each document's per-query state together and allocates term
+  and match lists only for documents a query touches, which also lowers the
+  retained per-query memory of large indexes. Full rows with match data take
+  the fused path for any number of fields (previously the map-based path above
+  64 fields).
+- Compacting the index (after a vacuum frees at least half the ids) renumbers
+  postings through a table indexed by old id, or a fast hash map when
+  historical ids are sparse, in one walk of the term tree.
 
 ## 0.12.0 - unreleased
 

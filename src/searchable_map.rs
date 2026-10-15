@@ -309,6 +309,15 @@ impl<T: Clone> SearchableMap<T> {
         keys
     }
 
+    /// Visit every key and its value mutably, in `keys` order, without
+    /// collecting the keys.
+    pub fn for_each_mut<F>(&mut self, mut visitor: F)
+    where
+        F: FnMut(&str, &mut T),
+    {
+        visit_mut(&mut self.root, &mut String::new(), &mut visitor);
+    }
+
     pub fn values(&self) -> Vec<T> {
         self.entries().into_iter().map(|(_, value)| value).collect()
     }
@@ -496,6 +505,32 @@ fn collect_keys<T>(node: &RadixNode<T>, prefix: &mut String, keys: &mut Vec<Stri
         let prefix_len = prefix.len();
         prefix.push_str(child_key);
         collect_keys(child, prefix, keys);
+        prefix.truncate(prefix_len);
+    }
+}
+
+fn visit_mut<T, F: FnMut(&str, &mut T)>(
+    node: &mut RadixNode<T>,
+    prefix: &mut String,
+    visitor: &mut F,
+) {
+    // `collect_keys`'s order.
+    let slot = node.leaf_slot();
+    for (child_key, child) in node.children[slot..].iter_mut().rev() {
+        let prefix_len = prefix.len();
+        prefix.push_str(child_key);
+        visit_mut(child, prefix, visitor);
+        prefix.truncate(prefix_len);
+    }
+
+    if let Some(leaf) = node.leaf.as_mut() {
+        visitor(prefix, leaf);
+    }
+
+    for (child_key, child) in node.children[..slot].iter_mut().rev() {
+        let prefix_len = prefix.len();
+        prefix.push_str(child_key);
+        visit_mut(child, prefix, visitor);
         prefix.truncate(prefix_len);
     }
 }

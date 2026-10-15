@@ -212,3 +212,27 @@ await test('long repetitive fields index as MiniSearch does', () => {
   assert.deepEqual(core.toJSON(), JSON.parse(JSON.stringify(upstream)));
   core.free();
 });
+
+await test('compaction renumbers dense and sparse id spaces as MiniSearch keeps them', async () => {
+  // Few live documents among many historical ids take the hash-map remap;
+  // most ids live take the table.
+  for (const [count, keep] of [[6000, id => id % 5 === 0], [70000, id => id % 997 === 5]]) {
+    const docs = Array.from({ length: count }, (_, id) => ({ id, text: `w${id % 13} v${id % 101} common${id % 2 ? ' odd' : ''}` }));
+    const run = async C => {
+      const index = new C({ fields: ['text'], autoVacuum: false });
+      index.addAll(docs);
+      for (const doc of docs) if (!keep(doc.id)) index.discard(doc.id);
+      await index.vacuum();
+      index.add({ id: 'new', text: 'common odd w1' });
+      const out = [index.documentCount, index.termCount, ...['common', 'odd w1', 'v5'].map(q => index.search(q, { prefix: true }))];
+      if (C === MiniSearch) {
+        assert.equal(index.executionMode, 'wasm');
+        // The facade compacted: ids are dense again.
+        assert.ok(index._wasm.nextId <= index.documentCount + 1, `nextId ${index._wasm.nextId}`);
+        index.free();
+      }
+      return out;
+    };
+    assert.deepEqual(await run(MiniSearch), await run(Original), `${count} documents`);
+  }
+});

@@ -1640,6 +1640,48 @@ pub fn with_boost_document<R>(boost: BoostDocument, query: impl FnOnce() -> R) -
     result
 }
 
+/// Compaction's old → new short id map. A table indexed by old id when the
+/// id space is not much larger than the live documents (one lookup per
+/// posting); a hash map when historical ids are sparse, where a table of
+/// `next_id` entries would be mostly empty.
+enum IdRemap {
+    Dense(Vec<ShortId>),
+    Sparse(FxHashMap<ShortId, ShortId>),
+}
+
+impl IdRemap {
+    const NONE: ShortId = ShortId::MAX;
+
+    fn new(ascending: &[ShortId], next_id: ShortId) -> Self {
+        if (next_id as usize) <= ascending.len().saturating_mul(8).max(1 << 16) {
+            let mut table = vec![Self::NONE; next_id as usize];
+            for (new, &old) in ascending.iter().enumerate() {
+                table[old as usize] = new as ShortId;
+            }
+            IdRemap::Dense(table)
+        } else {
+            IdRemap::Sparse(
+                ascending
+                    .iter()
+                    .enumerate()
+                    .map(|(new, &old)| (old, new as ShortId))
+                    .collect(),
+            )
+        }
+    }
+
+    #[inline]
+    fn get(&self, old: ShortId) -> Option<ShortId> {
+        match self {
+            IdRemap::Dense(table) => table
+                .get(old as usize)
+                .copied()
+                .filter(|&new| new != Self::NONE),
+            IdRemap::Sparse(map) => map.get(&old).copied(),
+        }
+    }
+}
+
 fn boosting() -> bool {
     BOOST_DOCUMENT.with(|slot| slot.try_borrow().is_ok_and(|boost| boost.is_some()))
 }
@@ -2071,11 +2113,7 @@ impl MiniSearch {
         self.invalidate_expansions();
         let mut ids: Vec<_> = self.document_ids.keys().copied().collect();
         ids.sort_unstable();
-        let mapping: HashMap<_, _> = ids
-            .iter()
-            .enumerate()
-            .map(|(new, old)| (*old, new as ShortId))
-            .collect();
+        let mapping = IdRemap::new(&ids, self.next_id);
         let fields = self.options.fields.len();
         let mut lengths = Vec::with_capacity(ids.len() * fields);
         let mut present = Vec::with_capacity(ids.len() * fields);
@@ -2084,30 +2122,31 @@ impl MiniSearch {
             lengths.extend_from_slice(&self.field_length[start..start + fields]);
             present.extend_from_slice(&self.field_present[start..start + fields]);
         }
+        let remapped = |old: &ShortId| mapping.get(*old).expect("live document");
         for value in self.id_to_short_id.values_mut() {
-            *value = mapping[value];
+            *value = remapped(value);
         }
         self.document_ids = std::mem::take(&mut self.document_ids)
             .into_iter()
-            .map(|(id, value)| (mapping[&id], value))
+            .map(|(id, value)| (remapped(&id), value))
             .collect();
         self.stored_fields = std::mem::take(&mut self.stored_fields)
             .into_iter()
-            .map(|(id, value)| (mapping[&id], value))
+            .map(|(id, value)| (remapped(&id), value))
             .collect();
         // Mutate postings in place: rebuilding the radix tree would change ties.
         // Removing a document whose content changed leaves postings outside the
         // dirt count (the original API warns about this); they have no new id,
         // so they are dropped here, like a vacuum would drop them.
         let mut emptied = Vec::new();
-        for term in self.index.keys() {
-            let data = Rc::make_mut(self.index.get_mut(&term).expect("existing term"));
+        self.index.for_each_mut(|term, data| {
+            let data = Rc::make_mut(data);
             data.retain(|_, postings| {
                 postings
                     .0
-                    .retain_mut(|(id, frequency)| match mapping.get(id) {
+                    .retain_mut(|(id, frequency)| match mapping.get(*id) {
                         Some(new) if *frequency > 0 => {
-                            *id = *new;
+                            *id = new;
                             true
                         }
                         _ => false,
@@ -2116,9 +2155,9 @@ impl MiniSearch {
                 !postings.is_empty()
             });
             if data.is_empty() {
-                emptied.push(term);
+                emptied.push(term.to_owned());
             }
-        }
+        });
         for term in emptied {
             self.index.delete(&term);
         }
