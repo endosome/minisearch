@@ -1,3 +1,4 @@
+use crate::stats::stat;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -481,6 +482,7 @@ where
     // which derived terms reach a document decides that document's term list
     // order and the last-ulp rounding of its summed score, so prefix search
     // must walk exactly like the original.
+    stat!(TrieEdges, node.children.len());
     let slot = node.leaf_slot();
     for (child_key, child) in node.children[slot..].iter().rev() {
         let prefix_len = prefix.len();
@@ -511,6 +513,7 @@ where
     }
 
     for (child_key, child) in &node.children {
+        stat!(TrieEdges, 1);
         if remaining.starts_with(child_key) {
             let prefix_len = prefix.len();
             prefix.push_str(child_key);
@@ -590,6 +593,7 @@ fn fuzzy_recurse<T: Clone>(
             break;
         }
         let (child_key, child) = &node.children[index];
+        stat!(TrieEdges, 1);
         let mut i = row;
         let mut skipped = false;
 
@@ -599,6 +603,7 @@ fn fuzzy_recurse<T: Clone>(
                 break;
             }
 
+            stat!(MatrixRows, 1);
             let this_row_offset = columns * i;
             let prev_row_offset = this_row_offset - columns;
             let mut min_distance = matrix[this_row_offset];
@@ -672,6 +677,7 @@ fn fuzzy_visit<T, F>(
             break;
         }
         let (child_key, child) = &node.children[index];
+        stat!(TrieEdges, 1);
         let mut i = row;
         let mut skipped = false;
 
@@ -681,6 +687,7 @@ fn fuzzy_visit<T, F>(
                 break;
             }
 
+            stat!(MatrixRows, 1);
             let this_row_offset = columns * i;
             let prev_row_offset = this_row_offset - columns;
             let mut min_distance = matrix[this_row_offset];
@@ -807,6 +814,7 @@ fn fuzzy_visit_myers<T, F>(
             break;
         }
         let (child_key, child) = &node.children[index];
+        stat!(TrieEdges, 1);
         let mut cvp = vp;
         let mut cvn = vn;
         let mut cscore = score;
@@ -815,6 +823,7 @@ fn fuzzy_visit_myers<T, F>(
 
         for character in child_key.encode_utf16() {
             // Myers transition (Hyyrö): advance the DP column by one text char.
+            stat!(MyersTransitions, 1);
             let eq = peq.get(character);
             let xv = eq | cvn;
             let xh = (((eq & cvp).wrapping_add(cvp)) ^ cvp) | eq;

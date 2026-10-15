@@ -13,6 +13,9 @@ crate-type = ["cdylib", "rlib"]
 # document, search and serialization methods the engine test suites drive.
 # The published package is built without it (see scripts/build-core.mjs).
 core-api = []
+# Engine counters, phase timers and allocator accounting for profiling
+# (src/stats.rs). Never in a published build; see scripts/build-stats.mjs.
+stats = []
 
 [dependencies]
 js-sys = "0.3"

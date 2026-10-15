@@ -1,3 +1,4 @@
+use crate::stats::{phase, phase_begin, phase_end, stat};
 use crate::SearchableMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
@@ -484,9 +485,11 @@ impl Scratch {
 
     /// Id of `term` in the per-query intern table, creating it on first use.
     fn intern(&mut self, term: &str) -> u32 {
+        stat!(InternCalls, 1);
         if let Some(&id) = self.lookup.get(term) {
             return id;
         }
+        stat!(TermsInterned, 1);
         let id = self.table.len() as u32;
         self.table.push(term.to_owned());
         self.table_index.push(js_array_index(term));
@@ -565,6 +568,49 @@ impl Scratch {
             entry.1 |= 1u64 << field_id;
         }
     }
+}
+
+/// The per-query scratch this thread keeps between queries: document slots
+/// and the bytes its buffers hold on to (capacity, not use).
+#[cfg(feature = "stats")]
+pub(crate) fn scratch_footprint() -> (usize, usize) {
+    use std::mem::size_of;
+    fn outer<T>(list: &Vec<T>) -> usize {
+        list.capacity() * size_of::<T>()
+    }
+    fn nested<T>(lists: &[Vec<T>]) -> usize {
+        lists
+            .iter()
+            .map(|list| list.capacity() * size_of::<T>())
+            .sum()
+    }
+    SCRATCH.with(|cell| {
+        let scratch = cell.borrow();
+        let bytes = outer(&scratch.score)
+            + outer(&scratch.spec_score)
+            + outer(&scratch.terms)
+            + nested(&scratch.terms)
+            + outer(&scratch.spec_count)
+            + outer(&scratch.term_count)
+            + outer(&scratch.term_mask)
+            + scratch.wide_terms.capacity() * size_of::<(ShortId, u32)>()
+            + outer(&scratch.first_spec)
+            + outer(&scratch.last_term)
+            + outer(&scratch.generation)
+            + outer(&scratch.spec_generation)
+            + outer(&scratch.touched)
+            + outer(&scratch.spec_touched)
+            + outer(&scratch.table)
+            + scratch.table.iter().map(String::capacity).sum::<usize>()
+            + outer(&scratch.table_index)
+            + scratch.lookup.capacity() * size_of::<(String, u32)>()
+            + outer(&scratch.term_fields)
+            + nested(&scratch.term_fields)
+            + outer(&scratch.last_pos)
+            + outer(&scratch.query_slots)
+            + nested(&scratch.query_slots);
+        (scratch.score.len(), bytes)
+    })
 }
 
 /// View of a finished fused query, borrowed from the thread-local scratch:
@@ -2154,6 +2200,7 @@ impl MiniSearch {
         let sort_by_score = shape.sort && !matches!(query, Query::Wildcard);
         let filter = apply_partial_options(&self.options.search_options, per_call).filter;
         let ranked = self.ranked_raw_results(raw_results, sort_by_score, filter.as_ref());
+        stat!(RowsMaterialized, ranked.len());
 
         let mut transfer = CompatTransfer {
             ids: String::from("["),
@@ -2262,6 +2309,7 @@ impl MiniSearch {
         use std::fmt::Write;
 
         let hit_count = fused.hits.len();
+        stat!(RowsMaterialized, hit_count);
         let mut transfer = CompatTransfer {
             ids: String::from("["),
             doc_ids: Vec::with_capacity(hit_count),
@@ -2368,6 +2416,7 @@ impl MiniSearch {
         raw_results: RawResult,
         sort_by_score: bool,
     ) -> Vec<SearchResult> {
+        stat!(RowsMaterialized, raw_results.len());
         let mut results = Vec::with_capacity(raw_results.len());
 
         for (doc_id, raw) in raw_results.into_entries() {
@@ -2648,6 +2697,7 @@ impl MiniSearch {
         let options = apply_partial_options(&self.options.search_options, per_call);
         let specs = self.query_specs(query, &options);
         self.run_fused_query(&specs, &options, |fused| {
+            stat!(RowsMaterialized, fused.hits.len());
             let mut doc_ids = Vec::with_capacity(fused.hits.len());
             let mut scores = Vec::with_capacity(fused.hits.len());
             let mut term_offsets = Vec::with_capacity(fused.hits.len() + 1);
@@ -2703,6 +2753,7 @@ impl MiniSearch {
         let specs = self.query_specs(query, options);
         let external = self.is_externally_identified();
         self.run_fused_query(&specs, options, |fused| {
+            stat!(RowsMaterialized, fused.hits.len());
             let mut ids = String::new();
             let mut doc_ids = Vec::with_capacity(fused.hits.len());
             let mut terms = String::new();
@@ -2808,7 +2859,10 @@ impl MiniSearch {
             let mut taken = cell.take();
             let scratch = &mut taken;
             scratch.begin_query(self.next_id as usize, track_rows);
+            stat!(FusedQueries, 1);
+            stat!(Specs, specs.len());
 
+            phase_begin!(accumulate, Accumulate);
             let mut term_slots: FxHashMap<&str, u32> = FxHashMap::default();
             for (spec_index, spec) in specs.iter().enumerate() {
                 let next_slot = term_slots.len() as u32;
@@ -2825,6 +2879,10 @@ impl MiniSearch {
                 scratch.flush_spec();
             }
 
+            phase_end!(accumulate);
+            stat!(DocsTouched, scratch.touched.len());
+
+            phase_begin!(rank, Rank);
             let spec_count = specs.len() as u32;
             // JS folds the per-spec maps into one `Map`: `OR` and `AND_NOT`
             // keep the first spec's insertion order (first touch), `AND`
@@ -2861,6 +2919,10 @@ impl MiniSearch {
                 });
             }
 
+            phase_end!(rank);
+            stat!(HitsKept, hits.len());
+
+            phase_begin!(transfer, Transfer);
             let result = finish(FusedHits {
                 hits,
                 terms: &scratch.terms,
@@ -2879,6 +2941,7 @@ impl MiniSearch {
                 },
                 lookup: &scratch.lookup,
             });
+            phase_end!(transfer);
             cell.replace(taken);
             result
         })
@@ -2914,6 +2977,7 @@ impl MiniSearch {
     }
 
     fn execute_query(&self, query: &str, options: &SearchOptions) -> RawResult {
+        stat!(RawTextQueries, 1);
         let queries = self.query_specs(query, options);
         let results = queries
             .iter()
@@ -2998,6 +3062,7 @@ impl MiniSearch {
     }
 
     fn query_specs(&self, query: &str, options: &SearchOptions) -> Vec<QuerySpec> {
+        phase!(Plan);
         self.query_terms(query)
             .into_iter()
             .enumerate()
@@ -3033,6 +3098,7 @@ impl MiniSearch {
         if query.prefix {
             let query_len = js_len(&query.term);
             for expansion in self.prefix_expansions(&query.term).iter() {
+                stat!(ExpansionsUsed, 1);
                 let term_len = expansion.term_len as usize;
                 let distance = term_len.saturating_sub(query_len);
                 let weight = options.weights.prefix * term_len as f64
@@ -3066,8 +3132,10 @@ impl MiniSearch {
                     // with the query term) was added there; skip it here so
                     // it isn't double-counted.
                     if query.prefix && expansion.term.starts_with(query.term.as_str()) {
+                        stat!(ExpansionsSkipped, 1);
                         continue;
                     }
+                    stat!(ExpansionsUsed, 1);
 
                     let term_len = expansion.term_len as f64;
                     let weight =
@@ -3119,6 +3187,7 @@ impl MiniSearch {
         if query.prefix {
             let query_len = js_len(&query.term);
             for expansion in self.prefix_expansions(&query.term).iter() {
+                stat!(ExpansionsUsed, 1);
                 let term_len = expansion.term_len as usize;
                 let distance = term_len.saturating_sub(query_len);
                 let weight = options.weights.prefix * term_len as f64
@@ -3154,8 +3223,10 @@ impl MiniSearch {
                     // with the query term) was added there; skip it here so
                     // it isn't double-counted.
                     if query.prefix && expansion.term.starts_with(query.term.as_str()) {
+                        stat!(ExpansionsSkipped, 1);
                         continue;
                     }
+                    stat!(ExpansionsUsed, 1);
 
                     let term_len = expansion.term_len as f64;
                     let weight =
@@ -3209,6 +3280,10 @@ impl MiniSearch {
                     .filter(|(doc_id, _)| self.alive[*doc_id as usize])
                     .count()
             };
+            stat!(PostingLists, 1);
+            stat!(PostingsVisited, field_term_freqs.len());
+            stat!(PostingsLive, matching_fields);
+            stat!(Tombstones, field_term_freqs.len() - matching_fields);
             let avg_field_length = self.average_field_length[field_id];
             // `idf` depends only on the term's document frequency in this field,
             // so it (and its `ln`) is constant across the whole posting list.
@@ -3307,6 +3382,10 @@ impl MiniSearch {
                     .filter(|(doc_id, _)| self.alive[*doc_id as usize])
                     .count()
             };
+            stat!(PostingLists, 1);
+            stat!(PostingsVisited, field_term_freqs.len());
+            stat!(PostingsLive, matching_fields);
+            stat!(Tombstones, field_term_freqs.len() - matching_fields);
             let avg_field_length = self.average_field_length[field_id];
             // `idf` depends only on the term's document frequency in this field,
             // so it (and its `ln`) is constant across the whole posting list.
@@ -3368,9 +3447,12 @@ impl MiniSearch {
     /// Prefix expansions of `term` (excluding the exact match), memoized in
     /// traversal order. See [`ExpansionCache`].
     fn prefix_expansions(&self, term: &str) -> std::rc::Rc<Vec<PrefixExpansion>> {
+        phase!(Expand);
         if let Some(hit) = self.query_cache.0.borrow().prefix.get(term) {
+            stat!(PrefixCacheHits, 1);
             return std::rc::Rc::clone(hit);
         }
+        stat!(PrefixCacheMisses, 1);
 
         let query_len = js_len(term);
         let mut expansions = Vec::new();
@@ -3389,6 +3471,7 @@ impl MiniSearch {
             });
         });
 
+        stat!(ExpansionsFound, expansions.len());
         let expansions = std::rc::Rc::new(expansions);
         let mut cache = self.query_cache.0.borrow_mut();
         if cache.prefix.len() >= EXPANSION_CACHE_CAP {
@@ -3407,10 +3490,13 @@ impl MiniSearch {
         term: &str,
         max_distance: usize,
     ) -> std::rc::Rc<Vec<FuzzyExpansion>> {
+        phase!(Expand);
         let key = (term.to_owned(), max_distance);
         if let Some(hit) = self.query_cache.0.borrow().fuzzy.get(&key) {
+            stat!(FuzzyCacheHits, 1);
             return std::rc::Rc::clone(hit);
         }
+        stat!(FuzzyCacheMisses, 1);
 
         let mut expansions = Vec::new();
         self.index
@@ -3426,6 +3512,7 @@ impl MiniSearch {
                 });
             });
 
+        stat!(ExpansionsFound, expansions.len());
         let expansions = std::rc::Rc::new(expansions);
         let mut cache = self.query_cache.0.borrow_mut();
         if cache.fuzzy.len() >= EXPANSION_CACHE_CAP {

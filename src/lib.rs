@@ -5,6 +5,12 @@ mod js_math;
 mod mini_search;
 mod searchable_map;
 mod separators;
+mod stats;
+
+// Wasm only: native test binaries install allocators of their own.
+#[cfg(all(feature = "stats", target_arch = "wasm32"))]
+#[global_allocator]
+static ALLOCATOR: stats::CountingAllocator = stats::CountingAllocator;
 
 pub use js_math::log as js_log;
 pub use mini_search::{
@@ -1801,5 +1807,23 @@ fn json_to_js(value: &Value) -> JsValue {
             }
             object.into()
         }
+    }
+}
+
+/// Profiling hooks of a `stats` build (see `src/stats.rs`); absent from the
+/// published package.
+#[cfg(feature = "stats")]
+#[wasm_bindgen]
+impl MiniSearchWasm {
+    /// The engine counters, phase timers, allocator and scratch figures since
+    /// the last `resetEngineStats`, as JSON.
+    #[wasm_bindgen(js_name = engineStats, skip_typescript)]
+    pub fn engine_stats_js() -> String {
+        stats::snapshot(mini_search::scratch_footprint())
+    }
+
+    #[wasm_bindgen(js_name = resetEngineStats, skip_typescript)]
+    pub fn reset_engine_stats_js() {
+        stats::reset();
     }
 }

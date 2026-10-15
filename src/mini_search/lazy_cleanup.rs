@@ -22,7 +22,10 @@ type Ranked = Vec<(ShortId, f64, RawResultValue)>;
 
 impl MiniSearch {
     fn take_stale_hit(&self) -> bool {
-        self.stale_hit.0.replace(false)
+        let stale = self.stale_hit.0.replace(false);
+        // Each raised flag sends the query through the mutating replica.
+        stat!(DirtyRetries, u64::from(stale));
+        stale
     }
 
     /// [`Self::search_query_transfer`] with JS MiniSearch's dirty-index
@@ -441,6 +444,8 @@ impl MiniSearch {
                 // Starts at the full size and drops by one per stale posting
                 // met, so it is only correct for the live documents that
                 // follow every stale one. That is the behavior to reproduce.
+                stat!(PostingLists, 1);
+                stat!(PostingsVisited, postings.len());
                 let mut matching_fields = postings.len();
                 let mut idf = bm25_idf(matching_fields as f64, document_count);
                 let avg_field_length = average_field_length[field_id];
