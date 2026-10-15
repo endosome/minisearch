@@ -4,6 +4,31 @@ Notable changes to `minisearch-wasm`. Versions before 0.7.0 are summarized in
 `PORTING.md`. Release notes of the latest published version are in
 `RELEASE_NOTES.md`.
 
+## Unreleased
+
+### Fixed
+
+- `search()` on an index whose stored fields include `score` read each
+  stored-field getter twice and ran the query twice: once sorted, discarded,
+  then unsorted. It now runs once, builds the rows in MiniSearch's order and
+  sorts them once, so a getter runs once per row, as in MiniSearch.
+- `autoSuggest()` and `autoSuggestJoined()` ignored a stored `score` field;
+  MiniSearch's suggestions take their scores and order from `search()` rows,
+  which the stored field overrides. They now do too.
+
+### Performance
+
+- `search()`, `searchJoined()`, `searchJoinedOpts()` and `searchRaw()` run the
+  engine once per call when a stored field replaces the result score
+  (previously up to three times). The compact calls no longer scan stored
+  objects for a `score` unless the index stores one or its live stored objects
+  were handed out (`getStoredFields`, `toJSON`).
+- `termCount` is O(1). `search()` with `includeMatch: false` no longer tracks
+  match fields, and with it an index of more than 64 fields searches on the
+  fused path. The engine no longer builds transfer strings the facade does not
+  read, prepares field boosts once per query, and copies less in radix
+  deletion, vacuum, fuzzy-cache lookups and boosted scoring.
+
 ## 0.12.0 - unreleased
 
 ### Changed

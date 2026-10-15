@@ -101,7 +101,10 @@ const scenarios = {
   // Shadowing stored fields: WP-01's case.
   'stored score, static': { stored: ['title', 'score'], calls: [...searchCalls(STRING_QUERIES, { prefix: true, fuzzy: 0.2 }), ...compactCalls('apple')] },
   'stored score, live getter': { stored: ['score'], getters: true,
-    calls: [...searchCalls(['apple', 'apple'], { prefix: true }), ...compactCalls('ap'), ...searchCalls(['apple'], { includeMatch: false })] },
+    // includeMatch is this package's option (MiniSearch always returns
+    // match): that call is checked against the fixture only.
+    calls: [...searchCalls(['apple', 'apple'], { prefix: true }), ...compactCalls('ap'),
+      ['includeMatch:false search "apple"', index => index.search('apple', { includeMatch: false })]] },
   'stored score, mutated between calls': { stored: ['score'],
     calls: [...searchCalls(['apple']), ['mutate', index => { index.toJSON().storedFields[0].score = -1; return null; }], ...searchCalls(['apple']), ...compactCalls('apple')] },
   'stored id/terms/match shadow': { stored: ['title', 'terms', 'match'], config: () => ({ idField: 'id' }),
@@ -146,14 +149,9 @@ const upstreamCall = name => /^(search |search\b|autoSuggest |autoSuggest\b|add|
 // Divergences from MiniSearch present at the baseline, each with why. The
 // check asserts they still differ, so a fix shows up here: remove the entry.
 const KNOWN_DIVERGENCES = new Map([
-  // WP-01: the sorted native run builds the rows (reading the getter once
-  // per row), sees a stored value replaced a score and runs again unsorted
-  // (reading it again). MiniSearch reads it once per row.
-  ['stored score, live getter', 'stored score getter read twice per row by search()'],
-  // The native autoSuggest groups the engine's rows; MiniSearch groups
-  // search() rows, whose score a stored `score` field replaces, so its
-  // suggestion scores and order follow the stored values.
-  ['autoSuggest', 'native autoSuggest ignores a stored score field'],
+  // None. At the baseline: a stored score getter read twice per row by
+  // search(), and the native autoSuggest ignoring a stored score; both
+  // fixed in WP-01.
 ]);
 
 const results = {}, divergences = [];

@@ -422,11 +422,11 @@
     "autoSuggestJoined apple",
     {
      "count": 3,
-     "suggestions": "apple\napple apples\napples",
+     "suggestions": "apple apples\napple\napples",
      "scores": [
-      2.7503561044145117,
-      1.9730052046054503,
-      0.5435042724435806
+      5,
+      "§NaN",
+      3
      ]
     }
    ]
@@ -441,12 +441,12 @@
    ],
    [
     "get score",
-    "5",
+    "0",
     1
    ],
    [
     "get score",
-    "0",
+    "5",
     1
    ],
    [
@@ -458,26 +458,6 @@
     "get score",
     "3",
     1
-   ],
-   [
-    "get score",
-    "0",
-    2
-   ],
-   [
-    "get score",
-    "5",
-    2
-   ],
-   [
-    "get score",
-    "2",
-    2
-   ],
-   [
-    "get score",
-    "3",
-    2
    ],
    [
     "call",
@@ -485,43 +465,23 @@
    ],
    [
     "get score",
-    "5",
-    3
-   ],
-   [
-    "get score",
     "0",
-    3
-   ],
-   [
-    "get score",
-    "2",
-    3
-   ],
-   [
-    "get score",
-    "3",
-    3
-   ],
-   [
-    "get score",
-    "0",
-    4
+    2
    ],
    [
     "get score",
     "5",
-    4
+    2
    ],
    [
     "get score",
     "2",
-    4
+    2
    ],
    [
     "get score",
     "3",
-    4
+    2
    ],
    [
     "call",
@@ -538,7 +498,7 @@
    [
     "get score",
     "3",
-    5
+    3
    ],
    [
     "get score",
@@ -548,17 +508,17 @@
    [
     "get score",
     "0",
-    5
+    3
    ],
    [
     "get score",
     "5",
-    5
+    3
    ],
    [
     "get score",
     "2",
-    5
+    3
    ],
    [
     "call",
@@ -569,41 +529,121 @@
     "autoSuggestJoined ap"
    ],
    [
+    "get score",
+    "3",
+    4
+   ],
+   [
+    "get score",
+    "1",
+    2
+   ],
+   [
+    "get score",
+    "0",
+    4
+   ],
+   [
+    "get score",
+    "5",
+    4
+   ],
+   [
+    "get score",
+    "2",
+    4
+   ],
+   [
     "call",
-    "search \"apple\""
-   ],
-   [
-    "get score",
-    "5",
-    6
-   ],
-   [
-    "get score",
-    "2",
-    6
+    "includeMatch:false search \"apple\""
    ],
    [
     "get score",
     "0",
-    6
-   ],
-   [
-    "get score",
-    "0",
-    7
+    5
    ],
    [
     "get score",
     "5",
-    7
+    5
    ],
    [
     "get score",
     "2",
-    7
+    5
    ]
   ],
   "outputs": [
+   [
+    "search \"apple\"",
+    [
+     {
+      "id": 1,
+      "score": 5.125,
+      "terms": [
+       "apple",
+       "apples"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title"
+       ],
+       "apples": [
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 6,
+      "score": "§NaN",
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "title",
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "score": 3.125,
+      "terms": [
+       "apple"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apple": [
+        "text"
+       ]
+      }
+     },
+     {
+      "id": 4,
+      "score": 3.125,
+      "terms": [
+       "apples"
+      ],
+      "queryTerms": [
+       "apple"
+      ],
+      "match": {
+       "apples": [
+        "text"
+       ]
+      }
+     }
+    ]
+   ],
    [
     "search \"apple\"",
     [
@@ -675,76 +715,6 @@
     ]
    ],
    [
-    "search \"apple\"",
-    [
-     {
-      "id": 1,
-      "score": 5.5,
-      "terms": [
-       "apple",
-       "apples"
-      ],
-      "queryTerms": [
-       "apple"
-      ],
-      "match": {
-       "apple": [
-        "title"
-       ],
-       "apples": [
-        "text"
-       ]
-      }
-     },
-     {
-      "id": 6,
-      "score": "§NaN",
-      "terms": [
-       "apple"
-      ],
-      "queryTerms": [
-       "apple"
-      ],
-      "match": {
-       "apple": [
-        "title",
-        "text"
-       ]
-      }
-     },
-     {
-      "id": 3,
-      "score": 3.5,
-      "terms": [
-       "apple"
-      ],
-      "queryTerms": [
-       "apple"
-      ],
-      "match": {
-       "apple": [
-        "text"
-       ]
-      }
-     },
-     {
-      "id": 4,
-      "score": 3.5,
-      "terms": [
-       "apples"
-      ],
-      "queryTerms": [
-       "apple"
-      ],
-      "match": {
-       "apples": [
-        "text"
-       ]
-      }
-     }
-    ]
-   ],
-   [
     "searchJoined ap",
     {
      "count": 0,
@@ -794,21 +764,21 @@
     "autoSuggestJoined ap",
     {
      "count": 4,
-     "suggestions": "apricot\napricots apples\napples apple\napple",
+     "suggestions": "apples apple\napricots apples\napple\napricot",
      "scores": [
-      1.4536083788788452,
-      1.1725548098780747,
-      0.9065206260780778,
-      0.8740538467418999
+      5.5,
+      3.5,
+      "§NaN",
+      1.25
      ]
     }
    ],
    [
-    "search \"apple\"",
+    "includeMatch:false search \"apple\"",
     [
      {
       "id": 1,
-      "score": 5.875,
+      "score": 5.625,
       "terms": [
        "apple"
       ],
@@ -828,7 +798,7 @@
      },
      {
       "id": 3,
-      "score": 3.875,
+      "score": 3.625,
       "terms": [
        "apple"
       ],
@@ -1055,11 +1025,11 @@
     "autoSuggestJoined apple",
     {
      "count": 3,
-     "suggestions": "apple\napple apples\napples",
+     "suggestions": "apple apples\napple\napples",
      "scores": [
-      2.7503561044145117,
-      1.9730052046054503,
-      0.5435042724435806
+      -1,
+      "§NaN",
+      3
      ]
     }
    ]
@@ -1672,11 +1642,11 @@
     "autoSuggestJoined apple",
     {
      "count": 3,
-     "suggestions": "apple\napple apples\napples",
+     "suggestions": "apple apples\napple\napples",
      "scores": [
-      1.8495627960885146,
-      1.3385872908974894,
-      0.36302436772822333
+      5,
+      "§NaN",
+      3
      ]
     }
    ]
@@ -3252,24 +3222,8 @@
     "apple"
    ],
    [
-    "tokenize",
-    "apple"
-   ],
-   [
-    "searchProcessTerm",
-    "apple"
-   ],
-   [
     "call",
     "searchJoined OR apple"
-   ],
-   [
-    "tokenize",
-    "apple"
-   ],
-   [
-    "searchProcessTerm",
-    "apple"
    ],
    [
     "tokenize",
@@ -3551,11 +3505,11 @@
     "autoSuggestJoined apple",
     {
      "count": 3,
-     "suggestions": "apple\napple apples\napples",
+     "suggestions": "apple apples\napple\napples",
      "scores": [
-      2.7503561044145117,
-      1.9730052046054503,
-      0.5435042724435806
+      5,
+      "§NaN",
+      3
      ]
     }
    ],
@@ -3586,11 +3540,12 @@
     "autoSuggest ap",
     [
      {
-      "suggestion": "apricot",
+      "suggestion": "apples apple",
       "terms": [
-       "apricot"
+       "apples",
+       "apple"
       ],
-      "score": 1.4536083788788452
+      "score": 5
      },
      {
       "suggestion": "apricots apples",
@@ -3598,22 +3553,21 @@
        "apricots",
        "apples"
       ],
-      "score": 1.1725548098780747
-     },
-     {
-      "suggestion": "apples apple",
-      "terms": [
-       "apples",
-       "apple"
-      ],
-      "score": 0.9065206260780778
+      "score": 3
      },
      {
       "suggestion": "apple",
       "terms": [
        "apple"
       ],
-      "score": 0.8740538467418999
+      "score": "§NaN"
+     },
+     {
+      "suggestion": "apricot",
+      "terms": [
+       "apricot"
+      ],
+      "score": 1
      }
     ]
    ],
@@ -3627,7 +3581,7 @@
        "pears",
        "pie"
       ],
-      "score": 3.482186946841991
+      "score": 5
      }
     ]
    ]

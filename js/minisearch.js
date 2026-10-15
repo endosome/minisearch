@@ -257,6 +257,14 @@ export class MiniSearchWasm {
     this._shortIds = new Map();
     this._stored = [];
     this._hasStored = false;
+    // Whether a stored object can have a `score`, which replaces a result's
+    // own and decides the order (as in MiniSearch): `_scoreStored` when the
+    // index stores one (storeFields, or a loaded snapshot's objects), and
+    // `_storedExposed` once the live objects were handed out (getStoredFields,
+    // toJSON), where the caller may add one. Otherwise their keys are only
+    // the storeFields names and no check is needed.
+    this._scoreStored = !!options.storeFields?.includes?.('score');
+    this._storedExposed = false;
     // MiniSearch's averageFieldLength array, by what each entry is: a hole
     // (no document had the field), `null` (read from JSON), or `true` (set).
     this._averages = [];
@@ -620,7 +628,9 @@ export class MiniSearchWasm {
     if (this._boosting === null) this._check();
     if (this._js) return this._js.getStoredFields(id);
     const shortId = this._shortIds.get(id);
-    return shortId == null ? undefined : this._stored[shortId];
+    const fields = shortId == null ? undefined : this._stored[shortId];
+    if (fields !== undefined) this._storedExposed = true;
+    return fields;
   }
   _autoVacuum() {
     if (this._js) {
@@ -745,11 +755,23 @@ export class MiniSearchWasm {
     // boostDocument.
     const sorted = query !== Original.wildcard || plan.boost !== undefined;
     if (!plan.filter && plan.boost === undefined) {
-      const rows = this._results(this._rows(plan, plan.options, true), includeMatch);
+      // A stored `score` replaces a result's own, and the original sorts the
+      // rows by it from traversal order. Where one can be stored, do just
+      // that: one unsorted run, the rows, one sort.
+      if (this._scoreStored) {
+        const rows = this._results(this._rows(plan, plan.options, false), includeMatch);
+        if (sorted) rows.sort(byScore);
+        return rows;
+      }
+      const own = this._storedExposed ? [] : undefined;
+      const rows = this._results(this._rows(plan, plan.options, true), includeMatch, undefined, own);
       if (!this._shadowedScore) return rows;
-      // A stored `score` replaced a result's own: the original sorts by it,
-      // from traversal order.
-      const unsorted = this._results(this._rows(plan, plan.options, false), includeMatch);
+      // The caller gave a live stored object a score. The rows are built (each
+      // stored getter read once, as in the original): put them back in
+      // traversal order, which only the engine knows, then sort.
+      const byShortId = new Map(own.map(entry => [entry.shortId, entry.row]));
+      const { docIds } = this._rows(plan, { ...plan.options, includeMatch: false }, false);
+      const unsorted = Array.from(docIds, shortId => byShortId.get(shortId));
       if (sorted) unsorted.sort(byScore);
       return unsorted;
     }
@@ -923,7 +945,9 @@ export class MiniSearchWasm {
   autoSuggest(query, options) {
     this._check();
     options ??= {};
-    if (!this._js && typeof query === 'string' && !Object.values(options).includes(undefined) &&
+    // The native suggestions group the engine's scores; the original groups
+    // search() rows, whose score a stored one replaces.
+    if (!this._js && typeof query === 'string' && !Object.values(options).includes(undefined) && !this._scoreStored &&
         !this._hasSearchCallbacks(this._options.autoSuggestOptions, options) && this.search === MiniSearchWasm.prototype.search) {
       const text = this._leafText(query, { ...this._options.searchOptions, ...this._options.autoSuggestOptions, ...options });
       if (text !== unsupported) return this._wasm.autoSuggest(text, engineSearchOptions(options));
@@ -952,7 +976,9 @@ export class MiniSearchWasm {
   // Whether a stored `score` of one of these documents replaces its result's
   // score, which then decides the order, as it does in search().
   _storedScore(shortIds) {
-    if (!this._hasStored) return false;
+    if (this._scoreStored) return true;
+    // Without one stored, only a caller holding the live objects can add one.
+    if (!this._hasStored || !this._storedExposed) return false;
     for (const shortId of shortIds) {
       const fields = this._stored[shortId];
       if (fields != null && propertyIsEnumerable.call(fields, 'score')) return true;
@@ -961,21 +987,26 @@ export class MiniSearchWasm {
   }
   searchJoined(query, orMode) {
     this._check();
-    if (!this._js && typeof query === 'string' && !this._hasSearchCallbacks()) {
+    const options = orMode ? { combineWith: 'OR' } : {};
+    if (!this._js && typeof query === 'string' && !this._scoreStored && !this._hasSearchCallbacks()) {
       const text = this._leafText(query, this._options.searchOptions ?? {});
       const joined = text === unsupported ? undefined : this._wasm.searchJoined(text, orMode);
-      if (joined && !this._storedScore(joined.docIds)) return this._withIds(joined);
+      if (joined) return this._storedScore(joined.docIds) ? this._joinedRows(query, options) : this._withIds(joined);
     }
-    return this.searchJoinedOpts(query, orMode ? { combineWith: 'OR' } : {});
+    return this.searchJoinedOpts(query, options);
   }
   searchJoinedOpts(query, options) {
     this._check();
     options ??= {};
     const plan = this._compactPlan(query, options);
-    if (nativeCompact(plan)) {
+    // A stored score orders the results as in search(): full rows decide.
+    if (nativeCompact(plan) && !this._scoreStored) {
       const joined = this._wasm.searchJoinedOpts(plan.query, plan.options);
       if (!this._storedScore(joined.docIds)) return this._withIds(joined);
     }
+    return this._joinedRows(query, options, plan);
+  }
+  _joinedRows(query, options, plan) {
     const rows = this._identifiedRows(query, options, plan);
     return { count: rows.length, ids: JSON.stringify(rows.map(row => row.id)), scores: Float64Array.from(rows, row => row.score), terms: rows.map(row => row.terms.join(' ')).join('\n') };
   }
@@ -989,7 +1020,7 @@ export class MiniSearchWasm {
     this._check();
     options ??= {};
     const plan = this._compactPlan(query, options);
-    if (nativeCompact(plan)) {
+    if (nativeCompact(plan) && !this._scoreStored) {
       const raw = this._wasm.searchRaw(plan.query, plan.options);
       if (!this._storedScore(raw.docIds)) return { ...raw, idTableVersion: this.idTableVersion };
     }
@@ -1045,7 +1076,7 @@ export class MiniSearchWasm {
   }
   autoSuggestJoined(query) {
     this._check();
-    if (!this._js && typeof query === 'string' && !this._hasSearchCallbacks(this._options.autoSuggestOptions) &&
+    if (!this._js && typeof query === 'string' && !this._scoreStored && !this._hasSearchCallbacks(this._options.autoSuggestOptions) &&
         this.search === MiniSearchWasm.prototype.search) {
       const text = this._leafText(query, { ...this._options.searchOptions, ...this._options.autoSuggestOptions });
       if (text !== unsupported) return this._wasm.autoSuggestJoined(text);
@@ -1068,6 +1099,7 @@ export class MiniSearchWasm {
     for (let shortId = 0; shortId < this._stored.length; shortId++) {
       if (this._stored[shortId] !== undefined) storedFields[shortId] = this._stored[shortId];
     }
+    if (this._hasStored) this._storedExposed = true;
     const averageFieldLength = [];
     averageFieldLength.length = this._averages.length;
     this._averages.forEach((set, fieldId) => { averageFieldLength[fieldId] = set ? core.averageFieldLength[fieldId] : null; });
@@ -1141,6 +1173,8 @@ export class MiniSearchWasm {
       if (!(shortId >= 0 && shortId < stored.length)) return false;
       stored[shortId] = storedFields[key];
       this._hasStored = true;
+      const fields = stored[shortId];
+      if (fields != null && propertyIsEnumerable.call(fields, 'score')) this._scoreStored = true;
     }
     this._ids = ids;
     this._stored = stored;

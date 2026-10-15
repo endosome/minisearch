@@ -34,6 +34,11 @@ const WORKLOADS = {
   'searchJoinedOpts exact': { run: (ix, qs) => qs.reduce((s, q) => { const r = ix.searchJoinedOpts(q, { prefix: false, fuzzy: false }); return s + r.count + r.scores.reduce((a, b) => a + b, 0); }, 0) },
   'autoSuggest': { run: (ix, qs) => qs.reduce((s, q) => s + ix.autoSuggest(q).reduce((a, r) => a + r.score + r.suggestion.length, 0), 0) },
   'stored score search': { setup: 'storedScore', run: (ix, qs) => sumRows(qs.map(q => ix.search(q))) },
+  'stored score searchJoined': { setup: 'storedScore', run: (ix, qs) => qs.reduce((s, q) => { const r = ix.searchJoined(q); return s + r.count + r.scores.reduce((a, b) => a + b, 0) + r.ids.length; }, 0) },
+  'stored score searchRaw': { setup: 'storedScore', run: (ix, qs) => qs.reduce((s, q) => { const r = ix.searchRaw(q); return s + r.count + r.scores.reduce((a, b) => a + b, 0); }, 0) },
+  'stored score autoSuggest': { setup: 'storedScore', run: (ix, qs) => qs.reduce((s, q) => s + ix.autoSuggest(q).reduce((a, r) => a + r.score + r.suggestion.length, 0), 0) },
+  'stored title searchJoined': { setup: 'storedTitle', run: (ix, qs) => qs.reduce((s, q) => { const r = ix.searchJoined(q); return s + r.count + r.scores.reduce((a, b) => a + b, 0) + r.ids.length; }, 0) },
+  'stored title searchRaw': { setup: 'storedTitle', run: (ix, qs) => qs.reduce((s, q) => { const r = ix.searchRaw(q); return s + r.count + r.scores.reduce((a, b) => a + b, 0); }, 0) },
   'dirty search (first pass)': { setup: 'dirty', fresh: true, repeat: 1, run: (ix, qs) => sumRows(qs.map(q => ix.search(q))) },
   'termCount': { run: ix => { let s = 0; for (let i = 0; i < 200; i++) s += ix.termCount; return s; } },
   'addAll': { setup: 'empty', fresh: true, repeat: 1, run: (ix, qs, docs) => { ix.addAll(docs); return ix.documentCount + ix.termCount; } },
@@ -54,7 +59,7 @@ if (process.argv.includes('--child')) {
   const { docs, queries } = JSON.parse(readFileSync(resolve(root, 'differential/bench_corpus.json'), 'utf8'));
   const options = { fields: ['title', 'text'], autoVacuum: false, searchOptions: { prefix: true, fuzzy: 0.2, combineWith: 'AND' } };
   const make = kind => {
-    const ix = new MiniSearch(kind === 'storedScore' ? { ...options, storeFields: ['score'] } : options);
+    const ix = new MiniSearch(kind === 'storedScore' ? { ...options, storeFields: ['score'] } : kind === 'storedTitle' ? { ...options, storeFields: ['title'] } : options);
     if (kind === 'empty') return ix;
     ix.addAll(kind === 'storedScore' ? docs.map(d => ({ ...d, score: d.id % 7 })) : docs);
     if (kind === 'dirty') for (const d of docs) if (d.id % 4 === 0) ix.discard(d.id);
