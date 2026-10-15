@@ -62,49 +62,45 @@ and an edited `getStoredFields` object also transfer.
 ### Measured speedups
 
 Speedup over MiniSearch 7.2.0 (its time divided by this package's; higher is
-faster), from `npm run bench:public`: 20,000 synthetic documents, 38 prefix +
-fuzzy `AND` queries, 9 paired rounds, medians, Node 24 on Windows (AMD Ryzen 9
-3900X); [full report](differential/results/2026-09-27-0.12.0-vs-original.md).
-Compact APIs are timed with their results decoded; `searchJoined` and
-`searchRaw` have no MiniSearch counterpart and are compared with `search()`.
-The last column is a separate paired run of the published 0.11.0 package
-against 0.12.0 on the same machine.
-
-| Operation | MiniSearch 7.2.0 | 0.12.0 | 0.12.0 vs 0.11.0 |
-| --- | --- | --- | --- |
-| `search()`, full result objects | 1.0× (479 ms) | 2.2× | 2.4× faster |
-| `search()`, with stored fields | 1.0× (484 ms) | 3.0× | 3.2× faster |
-| `search()` with a `filter` callback | 1.0× (622 ms) | 2.1× | 1.8× faster |
-| `search()` with `boostDocument` | 1.0× (617 ms) | 1.9× | ran in JavaScript |
-| `search()` with a `processTerm` callback | 1.0× (543 ms) | 2.3× | ran in JavaScript |
-| `search()` on a dirty index (25% discarded) | 1.0× (370 ms) | 2.5× | |
-| `searchJoined`, decoded, vs `search()` | 1.0× (520 ms) | 4.8× | 1.3× faster |
-| `searchRaw`, decoded, vs `search()` | 1.0× (546 ms) | 9.9× | |
-| `autoSuggest` | 1.0× (416 ms) | 7.5× | |
-| `addAll` | 1.0× (774 ms) | 3.3× | 2.0× faster |
-| `addAll` with a `processTerm` callback | 1.0× (786 ms) | 1.3× | ran in JavaScript |
-| `loadJSON` | 1.0× (192 ms) | 1.8× | 2.5× faster |
-| Load, `loadBytes` vs `loadJSON` | 1.0× (193 ms) | 10× | 1–2 ms slower |
-| Save, `toBytes` vs `JSON.stringify` | 1.0× (330 ms) | 65× | 1–2 ms slower |
-| Vacuum after discarding 25% | 1.0× (64 ms) | 17× | |
-| Snapshot size, binary vs JSON | 1.0× (8,101 KB) | 7.5× smaller | 1.65× smaller |
-
-*Unreleased (performance work since 0.12.0), on Linux (Intel Xeon E5-2640,
-Node 24):* `search()` with full result objects is 4.1× MiniSearch (2.8× for
-0.12.0 on the same machine), with a `filter` callback 3.1×, with
-`boostDocument` 2.8×, on a dirty index 3.7×, and `loadJSON` 2.2×. Indexing
-1M documents is linear: 38 s, where 0.12.0 took 200-357 s. See the
+faster), from `npm run bench:public`: 20,000 synthetic documents, 39 prefix +
+fuzzy `AND` queries, 9 paired rounds, medians, Node 24.22 on Linux (Intel Xeon
+E5-2640). Every result row was checked equal to MiniSearch's: all 934,016
+scores identical. Compact APIs are timed with their results decoded;
+`searchJoined` and `searchRaw` have no MiniSearch counterpart and are compared
+with `search()`. The last column is 0.12.0 on the same machine;
 [final report](differential/results/2026-10-15-final.md).
 
-So swapping the import alone makes `search()` about 2× and `autoSuggest`
+| Operation | MiniSearch 7.2.0 | This version | 0.12.0 |
+| --- | --- | --- | --- |
+| `search()`, full result objects | 1.0× (1,307 ms) | **4.1×** | 2.8× |
+| `search()` with a `filter` callback | 1.0× (1,331 ms) | **3.1×** | 2.4× |
+| `search()` with `boostDocument` | 1.0× (1,406 ms) | **2.8×** | 2.3× |
+| `search()` with a `processTerm` callback | 1.0× (1,279 ms) | **4.3×** | 2.9× |
+| `search()` on a dirty index (25% discarded) | 1.0× (957 ms) | **3.7×** | 3.0× |
+| `searchJoined`, decoded, vs `search()` | 1.0× (1,338 ms) | 5.7× | 5.8× |
+| `searchRaw`, decoded, vs `search()` | 1.0× (1,350 ms) | 10.6× | 10.7× |
+| `autoSuggest` | 1.0× (905 ms) | 7.3× | 6.8× |
+| `addAll` | 1.0× (1,206 ms) | 2.5× | 2.5× |
+| `addAll` with a `processTerm` callback | 1.0× (1,220 ms) | 1.3× | 1.3× |
+| `loadJSON` | 1.0× (388 ms) | **2.2×** | 1.6× |
+| Load, `loadBytes` vs `loadJSON` | 1.0× (384 ms) | 12× | 11× |
+| Save, `toBytes` vs `JSON.stringify` | 1.0× (610 ms) | 76× | 61× |
+| Vacuum after discarding 25% | 1.0× (113 ms) | 18× | 18× |
+| Snapshot size, binary vs JSON | 1.0× (8,296 KB) | 7.5× smaller | 7.5× smaller |
+
+Indexing is linear in the corpus size: 1M documents take 38 s, where 0.12.0
+took 200–357 s.
+
+So swapping the import alone makes `search()` about 4× and `autoSuggest`
 about 7× faster, custom tokenizers and document boosts included. The larger
 gains need code changes: `searchJoined` and `searchRaw` return compact result
-shapes (see the API section), and `loadBytes` replaces `loadJSON`.
+shapes, `searchTopK`, `searchScores` and `countMatches` return less than
+`search()` (see the API section), and `loadBytes` replaces `loadJSON`.
 `loadJSONAsync` waits for a timer where MiniSearch's does; on Windows, where
 such a wait takes about 15 ms, both take about 8 seconds for this index.
 
-The facade costs size: the package is 1.4 MB unpacked, 469 KB as a tarball
-(0.11.0: 446 KB), because it ships the Wasm engine, the pinned JavaScript
+The facade costs size: the package is 1.5 MB unpacked, 483 KB as a tarball
+(0.12.0: 469 KB), because it ships the Wasm engine, the pinned JavaScript
 engine and ESM, CommonJS and browser-global builds. These numbers are
 workload- and machine-dependent; measure your own corpus before relying on a
 ratio. Earlier releases' measurements are in
@@ -254,6 +250,45 @@ const later  = await MiniSearchWasm.loadJSONAsync(JSON.stringify(jsMiniSearch), 
 const native = mini.toNativeJSONString();
 const reloaded = MiniSearchWasm.loadNativeJSON(native);
 ```
+
+### Top results, scores and counts
+
+When you show only the first page of results, need only ids and scores, or
+only a count, three methods return exactly that part of `search()`'s result,
+without building the rest. Each takes the same `query` and options as
+`search()` (query trees and `MiniSearch.wildcard` included), and returns what
+the `search()` expression in its comment would, with the same ids, scores,
+order and ties:
+
+```js
+// The first `limit` results, as full result objects:
+// search(query, options).slice(0, limit)
+const firstPage = mini.searchTopK("software engineer", { limit: 20, fuzzy: 0.2 });
+
+// Every result as { id, score }, in search() order:
+// search(query, options).map(({ id, score }) => ({ id, score }))
+const ranked = mini.searchScores("software engineer");
+
+// How many results there are:
+// search(query, options).length
+const total = mini.countMatches("software engineer", { combineWith: "OR" });
+```
+
+- `limit` is required and must be a non-negative integer, or `searchTopK`
+  throws a `TypeError`. It is not passed on as a search option.
+- On the benchmark corpus they take 0.34–0.45× the time of the `search()`
+  expression. Scoring still visits every matching document; what they save is
+  building and transferring results nobody reads.
+- They fall back to running `search()` itself, and are then no faster, where
+  `search()`'s rows depend on JavaScript: a `filter` or `boostDocument`
+  callback, a stored field named `score` or `id` (which replaces the result's
+  own value), a stored object returned by `getStoredFields` or `toJSON` that
+  was given such a property, an index that moved to the JavaScript engine, or a
+  subclass that overrides `search`. Stored fields never change a count, so
+  `countMatches` falls back only for the callbacks, the JavaScript engine and
+  a subclass. The results are the same either way.
+- On an index with discarded documents, each call cleans up what it reaches,
+  as one `search()` call would.
 
 ## Changes in 0.12.0
 
