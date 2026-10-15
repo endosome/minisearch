@@ -28,15 +28,23 @@ MiniSearch's own test suite also runs against the public facade.
 
 ## Migrating from MiniSearch
 
-Replace the import. The documented MiniSearch 7.2.0 API, callbacks included,
-keeps working:
+Install this package under MiniSearch's name, and your code stays exactly as
+it is. The documented MiniSearch 7.2.0 API, callbacks and TypeScript types
+included, keeps working:
+
+```sh
+npm install minisearch@npm:@endosome/minisearch
+```
 
 ```js
-// before
-import MiniSearch from "minisearch";
-// after
-import MiniSearch from "@endosome/minisearch";
+import MiniSearch from "minisearch"; // unchanged; now the Wasm engine
 ```
+
+That is npm's package alias: your `package.json` lists
+`"minisearch": "npm:@endosome/minisearch@^0.13.0"`, and every
+`import ... from "minisearch"` (or `require("minisearch")`, or
+`"minisearch/SearchableMap"`) resolves here. To keep both libraries side by
+side instead, install `@endosome/minisearch` and import it by that name.
 
 In a browser or module Worker, also call `await MiniSearch.init()` once at
 startup. Without it every index runs on the bundled JavaScript engine, which is
@@ -59,6 +67,24 @@ permanently, only for what the engine cannot represent:
 `index.executionMode` reports `"wasm"` or `"javascript"`. Up to 0.11.0 the list
 is longer: there `tokenize`, `processTerm`, `boostDocument`, object ids, Dates
 and an edited `getStoredFields` object also transfer.
+
+**What you can add once you have switched.** None of these exist in MiniSearch;
+each is optional, and code that does not use them behaves as before:
+
+| Need | Use | Gain on the benchmark corpus |
+| --- | --- | --- |
+| Only the first page of results | `searchTopK(query, { limit: 20, ...options })` | 0.40× the time of `search(...).slice(0, 20)` |
+| Only ids and scores | `searchScores(query, options)` | 0.45× |
+| Only the number of results | `countMatches(query, options)` | 0.34× |
+| Results without `match` | `search(query, { includeMatch: false })` | about 0.5× of `search()` |
+| Ids, scores and terms in compact form | `searchJoined`, `searchJoinedOpts`, `searchRaw` | 5.7× and 10.6× MiniSearch |
+| Faster save and load | `toBytes()` / `MiniSearch.loadBytes(bytes)` | 76× and 12× MiniSearch's JSON |
+| Callback-free search options | `prefix: [false, true]`, `fuzzy: [0.2, false]`, `boostTerm: [2, 1]` (one entry per query term), `filter: { category: "books" }` | kept in Wasm without calling back |
+| A job-board tokenizer | `tokenizer: "jobboard"` | native, no callback |
+
+The first three return exactly what the `search()` expression would; see
+[Top results, scores and counts](#top-results-scores-and-counts) and the
+[API](#api) section for the rest.
 
 ### Measured speedups
 
@@ -549,6 +575,8 @@ compatibility.
 
 ```sh
 npm install @endosome/minisearch
+# or, to replace MiniSearch without touching imports of "minisearch":
+npm install minisearch@npm:@endosome/minisearch
 ```
 
 Node ESM and CommonJS initialize the packaged Wasm module synchronously:

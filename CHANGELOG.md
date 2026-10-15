@@ -15,7 +15,9 @@ about 0.4x its time. Scores stay identical to MiniSearch's, and snapshots from
 ### Changed
 
 - The package is published as `@endosome/minisearch` (previously
-  `minisearch-wasm`); update the install command and imports. Snapshot format
+  `minisearch-wasm`). Install it by that name, or as
+  `npm install minisearch@npm:@endosome/minisearch` to keep imports of
+  `minisearch` unchanged (the package contract test covers both). Snapshot format
   identifiers (`minisearch-wasm/identity`, `minisearch-wasm/compat`) and the
   wildcard symbol key are unchanged, so saved indexes and existing code keep
   working.

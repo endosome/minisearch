@@ -1,7 +1,7 @@
 // Install the actual tarball, then exercise package resolution, strict types,
 // CommonJS and a browser-global bundle with dynamic JS code generation disabled.
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { resolve, join, dirname } from 'node:path';
@@ -129,5 +129,26 @@ assert.equal(bundled.status, 0, bundled.stderr); assert.match(bundled.stdout, /^
 writeFileSync(join(fixture, 'browser.cjs'), "const MiniSearch = require('@endosome/minisearch'); module.exports = new MiniSearch({ fields: ['text'] });\n");
 await build({ absWorkingDir: fixture, entryPoints: ['browser.cjs'], bundle: true, platform: 'browser', outfile: 'out/browser.js', logLevel: 'error' });
 assert.doesNotMatch(readFileSync(join(fixture, 'out/browser.js'), 'utf8'), /node:fs/);
+// Installed under MiniSearch's own name (`npm install minisearch@npm:@endosome/minisearch`),
+// existing imports of 'minisearch' work unchanged: values, subpath and types.
+const aliased = join(fixture, 'aliased');
+mkdirSync(aliased);
+writeFileSync(join(aliased, 'package.json'), JSON.stringify({ private: true, type: 'module' }));
+run([npm, 'install', '--ignore-scripts', '--no-audit', '--no-fund', `minisearch@file:${join(fixture, packed[0].filename)}`], aliased);
+writeFileSync(join(aliased, 'esm.mjs'), `import MiniSearch from 'minisearch';
+import SearchableMap from 'minisearch/SearchableMap';
+const index = new MiniSearch({ fields: ['text'] });
+index.addAll([{ id: 1, text: 'apple pie' }, { id: 2, text: 'banana' }]);
+console.log(index.executionMode, index.search('apple').length, index.searchTopK('ap', { prefix: true, limit: 1 }).length, typeof SearchableMap);
+`);
+writeFileSync(join(aliased, 'cjs.cjs'), "const MiniSearch = require('minisearch'); const index = new MiniSearch({ fields: ['text'] }); index.add({ id: 1, text: 'apple' }); console.log(index.executionMode, index.countMatches('apple'));\n");
+writeFileSync(join(aliased, 'types.mts'), `import MiniSearch, { type SearchResult } from 'minisearch';
+const index = new MiniSearch<{ id: number; text: string }>({ fields: ['text'] });
+const rows: SearchResult[] = index.searchTopK('apple', { limit: 5 });
+void rows;
+`);
+assert.equal(run(['esm.mjs'], aliased).trim(), 'wasm 1 1 function');
+assert.equal(run(['cjs.cjs'], aliased).trim(), 'wasm 1');
+run([join(root, 'node_modules/typescript/bin/tsc'), '--ignoreConfig', '--noEmit', '--strict', '--target', 'es2022', '--module', 'nodenext', '--lib', 'es2022', '--skipLibCheck', 'false', 'types.mts'], aliased);
 rmSync(fixture, { recursive: true });
-console.log('PACKAGE CONTRACT: ESM, CommonJS, SearchableMap, strict ES2022 types without the DOM library, README and licenses, global script, bundlers and CSP passed');
+console.log('PACKAGE CONTRACT: ESM, CommonJS, SearchableMap, strict ES2022 types without the DOM library, README and licenses, global script, bundlers, CSP and installing as "minisearch" passed');

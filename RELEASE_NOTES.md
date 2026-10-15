@@ -11,11 +11,13 @@ The package is now published as **`@endosome/minisearch`** (previously
 
 ```sh
 npm install @endosome/minisearch
+# or keep every import of "minisearch" as it is:
+npm install minisearch@npm:@endosome/minisearch
 ```
 
-```js
-import MiniSearch from "@endosome/minisearch";
-```
+The second form is npm's package alias: existing code that imports
+`minisearch` (values, `minisearch/SearchableMap` and TypeScript types) runs on
+this package without edits.
 
 ## Changes
 
@@ -51,6 +53,6 @@ and the decision records under `docs/adr/`.
 
 ## Upgrading from 0.12.0
 
-Change the package name in your install command and imports. Nothing else
-changes: the API, results, snapshot formats and the TypeScript types are
-compatible.
+Install under the new name, either as `@endosome/minisearch` (and change the
+imports) or aliased as `minisearch` (and change nothing). The API, results,
+snapshot formats and TypeScript types are otherwise compatible.
