@@ -49,10 +49,9 @@ Notable changes to `minisearch-wasm`. Versions before 0.7.0 are summarized in
   size: 1M documents took 357 s and now take 38 s. The first queries on an
   index with discarded documents, which allocate heavily, are about 8x faster.
   The allocator is the same dlmalloc as before, now a direct dependency.
-- A new term's field list and a new posting list are allocated for exactly one
-  entry (most terms occur in one field of one document), instead of four:
-  about 4% less memory for 1M documents, for up to 5% slower indexing of long
-  texts whose terms repeat across documents.
+- A new posting list is allocated for exactly one entry (most terms occur in
+  one document), instead of four: less memory for large vocabularies, at no
+  measurable indexing cost.
 - The engine no longer keeps a second copy of document identity for the
   facade's indexes (whose ids live on the JavaScript side): 12% less memory
   for a 300k-document index, and faster discard, vacuum and compaction.

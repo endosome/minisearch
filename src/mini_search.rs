@@ -60,10 +60,6 @@ impl FieldTermData {
         let index = match self.position(field) {
             Ok(index) => index,
             Err(index) => {
-                // Most terms occur in one field: room for exactly one.
-                if self.0.is_empty() {
-                    self.0.reserve_exact(1);
-                }
                 self.0.insert(index, (field, Postings::default()));
                 index
             }
@@ -76,9 +72,6 @@ impl FieldTermData {
         match self.position(field) {
             Ok(_) => false,
             Err(index) => {
-                if self.0.is_empty() {
-                    self.0.reserve_exact(1);
-                }
                 self.0.insert(index, (field, postings));
                 true
             }

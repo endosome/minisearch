@@ -38,7 +38,12 @@ Measured (upper bound first established with a throwaway build that skipped the 
 
 ## WP-12: the rest of persistent index memory
 
-The 1M × 4-field matrix corpus has 58.0M postings (442 MiB of entries), 1.13M posting lists of which 1.08M hold one document, and 1.02M terms of which 0.87M occur in one field. Merged in `a4c1b7d`: new field and posting lists are allocated for one entry instead of four (−9.4% live memory at 300k documents). Measured in the same change and rejected: trimming every list's growth room at geometric `next_id` thresholds, which fragmented a growing heap (Wasm memory 497 against 276 MiB at 300k).
+The 1M × 4-field matrix corpus has 58.0M postings (442 MiB of entries), 1.13M posting lists of which 1.08M hold one document, and 1.02M terms of which 0.87M occur in one field. Merged in `a4c1b7d`: new field and posting lists are allocated for one entry instead of four (−9.4% live memory at 300k documents).
+
+**Revised after the maintainer's call that indexing speed outweighs memory.** A 13-round A/B on top of WP-13 split the two parts:
+
+- Exact field lists save about 16 MiB of live memory at 300k documents (8%), but cost 3.3% on `addAll` and 4.8% on long texts. Most terms occur in both fields of these corpora, so each field list reallocates once. Reverted.
+- Exact posting lists save about 7.6 MiB, with no measurable cost (`addAll` 0.962, long text 0.956 against keeping both). Kept. Measured in the same change and rejected: trimming every list's growth room at geometric `next_id` thresholds, which fragmented a growing heap (Wasm memory 497 against 276 MiB at 300k).
 
 - **`field_present` bit-packing: rejected.** It is one byte per document-field slot: 4 MiB for 1M × 4 fields, 0.4% of that index. Bit-packing would also need a custom snapshot encoding (it is serialized as a JSON array of booleans) for no measurable gain on the target corpora.
 - **Inline singleton postings: deferred.** After `a4c1b7d`, a singleton list costs one 8-byte allocation (16 bytes with allocator overhead) beyond its 16-byte header. Inlining it would save about 17 MiB at 1M documents (under 2%), but would change every `Postings` access, including the binary reader and compaction. Revisit if a vocabulary dominated by singletons becomes a target workload.
