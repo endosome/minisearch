@@ -47,14 +47,33 @@ impl<T> RadixNode<T> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "SerializedMap<T>")]
 pub struct SearchableMap<T> {
     pub(crate) root: RadixNode<T>,
+    /// The number of keys, kept by every method that adds or removes one, so
+    /// `len` (MiniSearch's `termCount`) does not walk the tree. Not
+    /// serialized: the tree alone is the format.
+    #[serde(skip_serializing)]
+    len: usize,
+}
+
+/// What a `SearchableMap` is serialized as; deserializing counts its keys.
+#[derive(Deserialize)]
+struct SerializedMap<T> {
+    root: RadixNode<T>,
+}
+
+impl<T> From<SerializedMap<T>> for SearchableMap<T> {
+    fn from(map: SerializedMap<T>) -> Self {
+        Self::from_root(map.root)
+    }
 }
 
 impl<T> Default for SearchableMap<T> {
     fn default() -> Self {
         Self {
             root: RadixNode::default(),
+            len: 0,
         }
     }
 }
@@ -64,8 +83,15 @@ impl<T> SearchableMap<T> {
         Self::default()
     }
 
+    /// A map over a tree built elsewhere (a snapshot reader).
+    pub(crate) fn from_root(root: RadixNode<T>) -> Self {
+        let len = count_entries(&root);
+        Self { root, len }
+    }
+
     pub fn clear(&mut self) {
         self.root = RadixNode::default();
+        self.len = 0;
     }
 
     pub fn set(&mut self, key: &str, value: T) {
@@ -74,6 +100,7 @@ impl<T> SearchableMap<T> {
             // A new leaf appends at the end of the node's key order, like JS
             // `node.set(LEAF, value)`; an existing leaf keeps its position.
             node.leaf_pos = node.children.len() as u32;
+            self.len += 1;
         }
         node.leaf = Some(value);
     }
@@ -87,6 +114,7 @@ impl<T> SearchableMap<T> {
         if node.leaf.is_none() {
             node.leaf_pos = node.children.len() as u32;
             node.leaf = Some(initial());
+            self.len += 1;
         }
 
         node.leaf.as_mut().expect("leaf was just inserted")
@@ -99,13 +127,16 @@ impl<T> SearchableMap<T> {
         let node = create_path(&mut self.root, key);
         if node.leaf.is_none() {
             node.leaf_pos = node.children.len() as u32;
+            self.len += 1;
         }
         let current = node.leaf.take();
         node.leaf = Some(updater(current));
     }
 
     pub fn delete(&mut self, key: &str) -> bool {
-        delete_from(&mut self.root, key)
+        let deleted = delete_from(&mut self.root, key);
+        self.len -= usize::from(deleted);
+        deleted
     }
 
     pub fn get(&self, key: &str) -> Option<&T> {
@@ -121,7 +152,8 @@ impl<T> SearchableMap<T> {
     }
 
     pub fn len(&self) -> usize {
-        count_entries(&self.root)
+        debug_assert_eq!(self.len, count_entries(&self.root));
+        self.len
     }
 
     pub fn is_empty(&self) -> bool {

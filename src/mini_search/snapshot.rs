@@ -533,7 +533,7 @@ impl MiniSearch {
             };
             reader.node(&mut tree, 0)?
         };
-        index.index.root = root;
+        index.index = SearchableMap::from_root(root);
         if reader.pos != bytes.len() {
             return Err(invalid("trailing bytes"));
         }

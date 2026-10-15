@@ -160,3 +160,52 @@ fn fuzzy_search_returns_levenshtein_matches() {
         vec![("hell".to_owned(), 2), ("hello".to_owned(), 1)]
     );
 }
+
+#[test]
+fn len_follows_every_mutation() {
+    // `len` is a maintained count (MiniSearch's termCount), not a walk: check
+    // it against a reference map through set, fetch_with, update, delete,
+    // clear and a serde round trip, with keys that split and merge nodes.
+    use std::collections::BTreeMap;
+    let mut map: SearchableMap<u32> = SearchableMap::new();
+    let mut reference: BTreeMap<String, u32> = BTreeMap::new();
+    let mut seed = 0x9e3779b9u32;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 17;
+        seed ^= seed << 5;
+        seed
+    };
+    let stems = [
+        "a", "ab", "abc", "abd", "b", "ba", "bab", "café", "cafés", "z",
+    ];
+    for step in 0..4000u32 {
+        let key = format!("{}{}", stems[next() as usize % stems.len()], next() % 4);
+        match next() % 6 {
+            0 => {
+                map.set(&key, step);
+                reference.insert(key, step);
+            }
+            1 => {
+                *map.fetch_with(&key, || step) += 0;
+                reference.entry(key).or_insert(step);
+            }
+            2 => {
+                map.update(&key, |old| old.unwrap_or(0) + 1);
+                *reference.entry(key).or_insert(0) += 1;
+            }
+            3 | 4 => assert_eq!(map.delete(&key), reference.remove(&key).is_some()),
+            _ if step % 997 == 0 => {
+                map.clear();
+                reference.clear();
+            }
+            _ => {
+                let copy: SearchableMap<u32> =
+                    serde_json::from_str(&serde_json::to_string(&map).unwrap()).unwrap();
+                assert_eq!(copy.len(), reference.len());
+            }
+        }
+        assert_eq!(map.len(), reference.len(), "step {step}");
+        assert_eq!(map.keys().len(), reference.len());
+    }
+}
