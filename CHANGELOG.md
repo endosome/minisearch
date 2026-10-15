@@ -45,6 +45,10 @@ Notable changes to `minisearch-wasm`. Versions before 0.7.0 are summarized in
   entry (most terms occur in one field of one document), instead of four:
   about 4% less memory for 1M documents, for up to 5% slower indexing of long
   texts whose terms repeat across documents.
+- The engine no longer keeps a second copy of document identity for the
+  facade's indexes (whose ids live on the JavaScript side): 12% less memory
+  for a 300k-document index, and faster discard, vacuum and compaction.
+  Snapshots are unchanged.
 - Compacting the index (after a vacuum frees at least half the ids) renumbers
   postings through a table indexed by old id, or a fast hash map when
   historical ids are sparse, in one walk of the term tree.

@@ -1575,7 +1575,8 @@ impl PartialEq for StaleFlag {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// Serialized by hand (see `snapshot.rs`), with the derived field layout.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(try_from = "snapshot::JsonSnapshot")]
 pub struct MiniSearch {
     snapshot_version: u64,
@@ -1583,6 +1584,10 @@ pub struct MiniSearch {
     index: SearchableMap<Rc<FieldTermData>>,
     document_count: usize,
     next_id: ShortId,
+    /// Live documents' ids, and short ids by [`id_key`]. Empty for an
+    /// externally identified index, whose live documents are their own ids:
+    /// read both through [`Self::id_of`], [`Self::short_id_of`] and
+    /// [`Self::live_short_ids`].
     document_ids: HashMap<ShortId, Value>,
     id_to_short_id: HashMap<String, ShortId>,
     field_ids: BTreeMap<String, FieldId>,
@@ -1788,7 +1793,7 @@ impl MiniSearch {
             })?;
         let id_key = id_key(&id)?;
 
-        if self.id_to_short_id.contains_key(&id_key) {
+        if self.short_id_of(&id_key).is_some() {
             return Err(format!("MiniSearch: duplicate ID {}", printable_id(&id)));
         }
 
@@ -1855,7 +1860,7 @@ impl MiniSearch {
                 )
             })?;
         let id_key = id_key(id)?;
-        let short_id = *self.id_to_short_id.get(&id_key).ok_or_else(|| {
+        let short_id = self.short_id_of(&id_key).ok_or_else(|| {
             format!(
                 "MiniSearch: cannot remove document with ID {}: it is not in the index",
                 printable_id(id)
@@ -1889,8 +1894,7 @@ impl MiniSearch {
         }
 
         self.stored_fields.remove(&short_id);
-        self.document_ids.remove(&short_id);
-        self.id_to_short_id.remove(&id_key);
+        self.remove_identity(short_id);
         self.clear_field_length_row(short_id);
         self.alive[short_id as usize] = false;
         self.document_count -= 1;
@@ -1939,15 +1943,14 @@ impl MiniSearch {
 
     fn discard_without_auto_vacuum(&mut self, id: &Value) -> Result<(), String> {
         let id_key = id_key(id)?;
-        let short_id = *self.id_to_short_id.get(&id_key).ok_or_else(|| {
+        let short_id = self.short_id_of(&id_key).ok_or_else(|| {
             format!(
                 "MiniSearch: cannot discard document with ID {}: it is not in the index",
                 printable_id(id)
             )
         })?;
 
-        self.id_to_short_id.remove(&id_key);
-        self.document_ids.remove(&short_id);
+        self.remove_identity(short_id);
         self.stored_fields.remove(&short_id);
 
         let num_fields = self.options.fields.len();
@@ -2004,7 +2007,7 @@ impl MiniSearch {
     /// JS `getStoredFields(id)`: the stored fields of a live document, or
     /// `None` when the id is unknown or no fields are stored.
     pub fn stored_fields_of(&self, id: &Value) -> Option<BTreeMap<String, Value>> {
-        let short_id = *self.id_to_short_id.get(&id_key(id).ok()?)?;
+        let short_id = self.short_id_of(&id_key(id).ok()?)?;
         if self.options.store_fields.is_empty() {
             return None;
         }
@@ -2124,8 +2127,7 @@ impl MiniSearch {
             return Ok(());
         }
         self.invalidate_expansions();
-        let mut ids: Vec<_> = self.document_ids.keys().copied().collect();
-        ids.sort_unstable();
+        let ids = self.live_short_ids();
         let mapping = IdRemap::new(&ids, self.next_id);
         let fields = self.options.fields.len();
         let mut lengths = Vec::with_capacity(ids.len() * fields);
@@ -2217,7 +2219,7 @@ impl MiniSearch {
 
     pub fn has(&self, id: &Value) -> bool {
         id_key(id)
-            .map(|key| self.id_to_short_id.contains_key(&key))
+            .map(|key| self.short_id_of(&key).is_some())
             .unwrap_or(false)
     }
 
@@ -2273,11 +2275,11 @@ impl MiniSearch {
         let stored = self.stored_fields.get(&doc_id);
         filter.iter().all(|(key, expected)| {
             let actual = if *key == self.options.id_field {
-                self.document_ids.get(&doc_id)
+                self.id_of(doc_id)
             } else {
-                stored.and_then(|fields| fields.get(key))
+                stored.and_then(|fields| fields.get(key)).map(Cow::Borrowed)
             };
-            actual.is_some_and(|actual| json_equal(actual, expected))
+            actual.is_some_and(|actual| json_equal(&actual, expected))
         })
     }
 
@@ -2394,7 +2396,7 @@ impl MiniSearch {
                     transfer.ids.push(',');
                     transfer.stored.push(',');
                 }
-                match self.document_ids.get(doc_id) {
+                match self.id_of(*doc_id) {
                     Some(id) => {
                         let _ = write!(transfer.ids, "{id}");
                     }
@@ -2540,7 +2542,7 @@ impl MiniSearch {
                     transfer.ids.push(',');
                     transfer.stored.push(',');
                 }
-                match self.document_ids.get(&doc_id) {
+                match self.id_of(doc_id) {
                     Some(id) => {
                         let _ = write!(transfer.ids, "{id}");
                     }
@@ -2631,11 +2633,7 @@ impl MiniSearch {
             let stored_fields = self.stored_fields.get(&doc_id).cloned().unwrap_or_default();
 
             results.push(SearchResult {
-                id: self
-                    .document_ids
-                    .get(&doc_id)
-                    .cloned()
-                    .unwrap_or(Value::Null),
+                id: self.id_of(doc_id).map_or(Value::Null, Cow::into_owned),
                 score: raw.score * quality,
                 terms: raw.matches.js_keys(),
                 query_terms: raw.terms,
@@ -2669,11 +2667,7 @@ impl MiniSearch {
                 .hits
                 .iter()
                 .map(|&(doc_id, score, row_index)| CompactSearchResult {
-                    id: self
-                        .document_ids
-                        .get(&doc_id)
-                        .cloned()
-                        .unwrap_or(Value::Null),
+                    id: self.id_of(doc_id).map_or(Value::Null, Cow::into_owned),
                     score,
                     terms: fused
                         .term_ids(row_index)
@@ -2941,7 +2935,7 @@ impl MiniSearch {
             if short_id > 0 {
                 table.push(',');
             }
-            match self.document_ids.get(&short_id) {
+            match self.id_of(short_id) {
                 Some(other) => {
                     let _ = write!(table, "{other}");
                 }
@@ -2975,7 +2969,7 @@ impl MiniSearch {
                 doc_ids.push(doc_id);
                 if !external {
                     ids.push(if index > 0 { ',' } else { '[' });
-                    match self.document_ids.get(&doc_id) {
+                    match self.id_of(doc_id) {
                         Some(other) => {
                             let _ = write!(ids, "{other}");
                         }
@@ -3011,12 +3005,7 @@ impl MiniSearch {
             let mut terms = Vec::with_capacity(fused.hits.len());
 
             for &(doc_id, score, row_index) in &fused.hits {
-                ids.push(
-                    self.document_ids
-                        .get(&doc_id)
-                        .cloned()
-                        .unwrap_or(Value::Null),
-                );
+                ids.push(self.id_of(doc_id).map_or(Value::Null, Cow::into_owned));
                 scores.push(score);
                 terms.push(
                     fused
@@ -3232,8 +3221,7 @@ impl MiniSearch {
     /// per the no-callbacks rule).
     fn execute_wildcard_query(&self) -> RawResult {
         // JS iterates `_documentIds` in insertion order, which is short-id order.
-        let mut doc_ids: Vec<ShortId> = self.document_ids.keys().copied().collect();
-        doc_ids.sort_unstable();
+        let doc_ids = self.live_short_ids();
         let mut results = RawResult::default();
         // With `boostDocument`, the score is the boost, whatever it is.
         let mut boosts = boosting().then(|| document_boosts("", &doc_ids).into_iter());
@@ -3818,6 +3806,73 @@ impl MiniSearch {
         true
     }
 
+    /// The id of a live document (`None` for a free or dead short id).
+    #[inline]
+    fn id_of(&self, short_id: ShortId) -> Option<Cow<'_, Value>> {
+        if self.is_externally_identified() {
+            self.is_alive(short_id)
+                .then(|| Cow::Owned(Value::from(short_id)))
+        } else {
+            self.document_ids.get(&short_id).map(Cow::Borrowed)
+        }
+    }
+
+    /// The short id of the live document whose [`id_key`] is `key`.
+    fn short_id_of(&self, key: &str) -> Option<ShortId> {
+        if self.is_externally_identified() {
+            // A live document's id is its short id: `n:` and the integer.
+            let digits = key.strip_prefix("n:")?;
+            let short_id: ShortId = digits.parse().ok()?;
+            (short_id.to_string() == digits && self.is_alive(short_id)).then_some(short_id)
+        } else {
+            self.id_to_short_id.get(key).copied()
+        }
+    }
+
+    #[inline]
+    fn is_alive(&self, short_id: ShortId) -> bool {
+        self.alive.get(short_id as usize).copied().unwrap_or(false)
+    }
+
+    /// The live documents' short ids, ascending.
+    pub fn live_short_ids(&self) -> Vec<ShortId> {
+        if self.is_externally_identified() {
+            (0..self.alive.len() as ShortId)
+                .filter(|&short_id| self.is_alive(short_id))
+                .collect()
+        } else {
+            let mut short_ids: Vec<ShortId> = self.document_ids.keys().copied().collect();
+            short_ids.sort_unstable();
+            short_ids
+        }
+    }
+
+    /// Record a new live document's id (the caller marks it alive). An
+    /// externally identified index records nothing: `false` when its id
+    /// is not its short id. Otherwise `false` when the id is taken.
+    fn insert_identity(&mut self, short_id: ShortId, id: Value, key: String) -> bool {
+        if self.is_externally_identified() {
+            return id == short_id && !self.is_alive(short_id);
+        }
+        match self.id_to_short_id.entry(key) {
+            Entry::Occupied(_) => false,
+            Entry::Vacant(slot) => {
+                slot.insert(short_id);
+                self.document_ids.insert(short_id, id);
+                true
+            }
+        }
+    }
+
+    /// Forget a document's id (the caller marks it dead).
+    fn remove_identity(&mut self, short_id: ShortId) {
+        if let Some(id) = self.document_ids.remove(&short_id) {
+            if let Ok(key) = id_key(&id) {
+                self.id_to_short_id.remove(&key);
+            }
+        }
+    }
+
     fn add_document_id(&mut self, document_id: Value, id_key: String) -> Result<ShortId, String> {
         let next_id = self
             .next_id
@@ -3831,8 +3886,7 @@ impl MiniSearch {
         self.alive.resize(next_id as usize, false);
         let short_document_id = self.next_id;
         self.alive[short_document_id as usize] = true;
-        self.id_to_short_id.insert(id_key, short_document_id);
-        self.document_ids.insert(short_document_id, document_id);
+        self.insert_identity(short_document_id, document_id, id_key);
         self.document_count += 1;
         self.next_id = next_id;
         self.id_table_version += 1;

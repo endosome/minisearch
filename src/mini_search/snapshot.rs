@@ -67,7 +67,7 @@ impl TryFrom<JsonSnapshot> for MiniSearch {
                 *slot = true;
             }
         }
-        let index = Self {
+        let mut index = Self {
             snapshot_version: s.snapshot_version,
             options: s.options,
             index: s.index,
@@ -87,11 +87,85 @@ impl TryFrom<JsonSnapshot> for MiniSearch {
             stale_hit: StaleFlag::default(),
             id_table_version: 0,
         };
+        if index.is_externally_identified() {
+            // Each document's id is its short id; the maps are not kept.
+            let consistent = index.document_ids.len() == index.id_to_short_id.len()
+                && index.document_ids.iter().all(|(&short_id, id)| {
+                    *id == short_id
+                        && id_key(id)
+                            .is_ok_and(|key| index.id_to_short_id.get(&key) == Some(&short_id))
+                });
+            if !consistent {
+                return Err(invalid("inconsistent document ID mappings"));
+            }
+            index.document_ids = HashMap::new();
+            index.id_to_short_id = HashMap::new();
+        }
         index.validate_snapshot()?;
         Ok(Self {
             snapshot_version: SNAPSHOT_VERSION,
             ..index
         })
+    }
+}
+
+// The derived layout of the struct's persisted fields. An externally
+// identified index keeps no id maps in memory: they are written as each live
+// short id mapped to itself, as the maps held them.
+impl Serialize for MiniSearch {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut out = serializer.serialize_struct("MiniSearch", 13)?;
+        out.serialize_field("snapshot_version", &self.snapshot_version)?;
+        out.serialize_field("options", &self.options)?;
+        out.serialize_field("index", &self.index)?;
+        out.serialize_field("document_count", &self.document_count)?;
+        out.serialize_field("next_id", &self.next_id)?;
+        out.serialize_field("document_ids", &DocumentIds(self))?;
+        out.serialize_field("id_to_short_id", &ShortIds(self))?;
+        out.serialize_field("field_ids", &self.field_ids)?;
+        out.serialize_field("field_length", &self.field_length)?;
+        out.serialize_field("field_present", &self.field_present)?;
+        out.serialize_field("average_field_length", &self.average_field_length)?;
+        out.serialize_field("stored_fields", &self.stored_fields)?;
+        out.serialize_field("dirt_count", &self.dirt_count)?;
+        out.end()
+    }
+}
+
+struct DocumentIds<'a>(&'a MiniSearch);
+
+impl Serialize for DocumentIds<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let index = self.0;
+        if index.is_externally_identified() {
+            serializer.collect_map(
+                index
+                    .live_short_ids()
+                    .into_iter()
+                    .map(|short_id| (short_id, Value::from(short_id))),
+            )
+        } else {
+            index.document_ids.serialize(serializer)
+        }
+    }
+}
+
+struct ShortIds<'a>(&'a MiniSearch);
+
+impl Serialize for ShortIds<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let index = self.0;
+        if index.is_externally_identified() {
+            serializer.collect_map(
+                index
+                    .live_short_ids()
+                    .into_iter()
+                    .map(|short_id| (format!("n:{short_id}"), short_id)),
+            )
+        } else {
+            index.id_to_short_id.serialize(serializer)
+        }
     }
 }
 
@@ -252,8 +326,16 @@ impl MiniSearch {
         }
         // The dirt count has no bound: MiniSearch's `removeAll()` keeps it
         // while the short ids start again at 0.
-        if self.document_count != self.document_ids.len()
-            || self.id_to_short_id.len() != self.document_count
+        let live = self.alive.iter().filter(|&&alive| alive).count();
+        let mapped = if self.is_externally_identified() {
+            0
+        } else {
+            self.document_count
+        };
+        if self.document_count != live
+            || self.alive.len() != self.next_id as usize
+            || self.document_ids.len() != mapped
+            || self.id_to_short_id.len() != mapped
             || self.document_count > self.next_id as usize
         {
             return Err(invalid("inconsistent document or dirt counts"));
@@ -262,6 +344,7 @@ impl MiniSearch {
             validate_value(id, 0)?;
             if short_id >= self.next_id
                 || id.is_null()
+                || !self.is_alive(short_id)
                 || self.id_to_short_id.get(&id_key(id)?) != Some(&short_id)
             {
                 return Err(invalid("inconsistent document ID mappings"));
@@ -273,17 +356,13 @@ impl MiniSearch {
             .zip(&self.field_present)
             .enumerate()
         {
-            if (!present && length != 0)
-                || (present
-                    && !self
-                        .document_ids
-                        .contains_key(&((slot / fields) as ShortId)))
+            if (!present && length != 0) || (present && !self.is_alive((slot / fields) as ShortId))
             {
                 return Err(invalid("field data refers to an absent field or document"));
             }
         }
         for (id, values) in &self.stored_fields {
-            if !self.document_ids.contains_key(id)
+            if !self.is_alive(*id)
                 || values
                     .keys()
                     .any(|key| !self.options.store_fields.contains(key))
@@ -318,7 +397,7 @@ impl MiniSearch {
                         // legal: `discard` leaves them, and so does removing
                         // a document whose content changed (outside the
                         // dirt count).
-                        if self.document_ids.contains_key(&id) {
+                        if self.is_alive(id) {
                             let slot = id as usize * fields + field;
                             if !self.field_present[slot] || self.field_length[slot] == 0 {
                                 return Err(invalid("posting refers to an absent or empty field"));
@@ -366,16 +445,14 @@ impl MiniSearch {
         for average in &self.average_field_length {
             out.extend_from_slice(&average.to_le_bytes());
         }
-        let mut documents: Vec<_> = self.document_ids.iter().collect();
-        documents.sort_by_key(|(id, _)| **id);
         let mut previous = 0;
         let fields = self.options.fields.len();
         let external = self.is_externally_identified();
-        for (&id, value) in documents {
+        for id in self.live_short_ids() {
             write_varint(&mut out, (id - previous) as u64);
             previous = id;
             if !external {
-                write_value(&mut out, value, 0)?;
+                write_value(&mut out, &self.document_ids[&id], 0)?;
             }
             for field in 0..fields {
                 let slot = id as usize * fields + field;
@@ -460,14 +537,17 @@ impl MiniSearch {
                 .checked_mul(256)
                 .ok_or_else(|| invalid("document allocation overflow"))?,
         )?;
-        index
-            .document_ids
-            .try_reserve(document_count)
-            .map_err(|_| invalid("document allocation failed"))?;
-        index
-            .id_to_short_id
-            .try_reserve(document_count)
-            .map_err(|_| invalid("document allocation failed"))?;
+        // An externally identified index keeps no id maps (see `id_of`).
+        if !index.is_externally_identified() {
+            index
+                .document_ids
+                .try_reserve(document_count)
+                .map_err(|_| invalid("document allocation failed"))?;
+            index
+                .id_to_short_id
+                .try_reserve(document_count)
+                .map_err(|_| invalid("document allocation failed"))?;
+        }
         let mut previous: u32 = 0;
         let external = version >= 5 && index.is_externally_identified();
         for row in 0..document_count {
@@ -484,10 +564,10 @@ impl MiniSearch {
             } else {
                 reader.value(0)?
             };
-            if value.is_null() || index.id_to_short_id.insert(id_key(&value)?, id).is_some() {
+            let key = id_key(&value)?;
+            if value.is_null() || !index.insert_identity(id, value, key) {
                 return Err(invalid("null or duplicate external ID"));
             }
-            index.document_ids.insert(id, value);
             index.alive[id as usize] = true;
             for field in 0..fields {
                 let encoded = reader.varint()?;

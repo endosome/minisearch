@@ -228,9 +228,7 @@ impl MiniSearch {
             return Ok(conflicts);
         }
 
-        if let Some(id) = self.document_ids.remove(&short_id) {
-            self.id_to_short_id.remove(&id_key(&id)?);
-        }
+        self.remove_identity(short_id);
         self.stored_fields.remove(&short_id);
         self.clear_field_length_row(short_id);
         self.alive[short_id as usize] = false;
@@ -256,10 +254,10 @@ impl MiniSearch {
             .map(|(short_id, fields)| (*short_id, fields))
             .collect();
         let stored = serde_json::to_string(&stored).map_err(|err| err.to_string())?;
-        self.rekey_short_ids()?;
         self.stored_fields.clear();
         self.options.id_field = EXTERNAL_ID_FIELD.to_owned();
         self.options.store_fields.clear();
+        self.drop_identity_maps();
         Ok((ids, stored))
     }
 
@@ -267,30 +265,17 @@ impl MiniSearch {
     /// short ids densely and returns, for each new short id, the old one, so
     /// the caller can renumber its own maps.
     pub fn compact_external(&mut self) -> Result<Vec<ShortId>, String> {
-        let mut old: Vec<ShortId> = self.document_ids.keys().copied().collect();
-        old.sort_unstable();
+        let old = self.live_short_ids();
         self.compact()?;
-        self.rekey_short_ids()?;
+        self.id_table_version += 1;
         Ok(old)
     }
 
-    /// The short ids of the live documents, ascending.
-    pub fn live_short_ids(&self) -> Vec<ShortId> {
-        let mut short_ids: Vec<ShortId> = self.document_ids.keys().copied().collect();
-        short_ids.sort_unstable();
-        short_ids
-    }
-
-    /// Make every live document's id its short id.
-    fn rekey_short_ids(&mut self) -> Result<(), String> {
-        let short_ids: Vec<ShortId> = self.document_ids.keys().copied().collect();
-        self.id_to_short_id.clear();
-        for short_id in short_ids {
-            let id = Value::from(short_id);
-            self.id_to_short_id.insert(id_key(&id)?, short_id);
-            self.document_ids.insert(short_id, id);
-        }
+    /// An externally identified index's documents are their own ids: free
+    /// the maps that held them (see [`Self::id_of`]).
+    fn drop_identity_maps(&mut self) {
+        self.document_ids = HashMap::new();
+        self.id_to_short_id = HashMap::new();
         self.id_table_version += 1;
-        Ok(())
     }
 }

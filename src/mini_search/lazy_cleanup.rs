@@ -147,7 +147,7 @@ impl MiniSearch {
             doc_ids.push(*doc_id);
             if !external {
                 ids.push(if index > 0 { ',' } else { '[' });
-                match self.document_ids.get(doc_id) {
+                match self.id_of(*doc_id) {
                     Some(other) => {
                         let _ = write!(ids, "{other}");
                     }

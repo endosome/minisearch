@@ -285,10 +285,10 @@ impl MiniSearchJsonLoader {
             if short >= index.next_id || id.is_null() {
                 return Err(invalid("invalid document id entry"));
             }
-            if index.id_to_short_id.insert(id_key(&id)?, short).is_some() {
+            let key = id_key(&id)?;
+            if !index.insert_identity(short, id, key) {
                 return Err(invalid("duplicate document id"));
             }
-            index.document_ids.insert(short, id);
             index.alive[short as usize] = true;
             self.documents_read += 1;
             return Ok(pause(self.documents_read));
@@ -514,11 +514,10 @@ impl MiniSearch {
         let mut document_ids = JsonMap::new();
         let mut field_length = JsonMap::new();
         let mut stored_fields = JsonMap::new();
-        let mut short_ids: Vec<ShortId> = self.document_ids.keys().copied().collect();
-        short_ids.sort_unstable();
-        for short in short_ids {
+        for short in self.live_short_ids() {
             let key = short.to_string();
-            document_ids.insert(key.clone(), self.document_ids[&short].clone());
+            let id = self.id_of(short).expect("live document");
+            document_ids.insert(key.clone(), id.into_owned());
 
             // JS keeps a sparse per-document array with entries only for the
             // fields that were present; documents without any indexed field
