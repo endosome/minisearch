@@ -2,3 +2,5 @@ node_modules/
 *.json
 !package.json
 !fixtures/*.json
+# Dated result snapshots are committed; scratch output (e.g. public-benchmark.json) is not.
+!results/20*.json
